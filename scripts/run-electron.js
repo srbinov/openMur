@@ -20,6 +20,7 @@ const appDir = path.resolve(__dirname, "..");
 // Pass through any command line arguments
 const args = process.argv.slice(2);
 
+console.log("[run-electron] openMur dev — same codebase as packaged build (Vite serves the UI)");
 console.log("[run-electron] Starting Electron with cleaned environment...");
 console.log("[run-electron] Electron path:", electronPath);
 console.log("[run-electron] App dir:", appDir);
@@ -42,6 +43,27 @@ if (
 // Chromium flags must come before the app path, app args after.
 const chromiumFlags = args.filter((a) => a.startsWith("--ozone-platform="));
 const appArgs = args.filter((a) => !a.startsWith("--ozone-platform="));
+
+// On Linux, add --no-sandbox if chrome-sandbox is not SUID root
+if (process.platform === "linux" && !chromiumFlags.includes("--no-sandbox")) {
+  const fs = require("fs");
+  const sandboxPath = require("path").join(
+    require("path").dirname(electronPath),
+    "chrome-sandbox"
+  );
+  try {
+    const stat = fs.statSync(sandboxPath);
+    const isSuid = (stat.mode & 0o4000) !== 0;
+    const isOwnedByRoot = stat.uid === 0;
+    if (!isSuid || !isOwnedByRoot) {
+      chromiumFlags.push("--no-sandbox");
+      console.log("[run-electron] chrome-sandbox not SUID root, adding --no-sandbox");
+    }
+  } catch {
+    chromiumFlags.push("--no-sandbox");
+    console.log("[run-electron] chrome-sandbox not found, adding --no-sandbox");
+  }
+}
 const child = spawn(electronPath, [...chromiumFlags, appDir, ...appArgs], {
   stdio: "inherit",
   env: process.env,

@@ -1,0 +1,44 @@
+{
+  "extends": "./electron-builder.json",
+  "productName": "openMur",
+  "appId": "com.openmur.app",
+  "extraMetadata": {
+    "name": "open-mur",
+    "description": "Local dictation with Whisper (openMur)"
+  },
+  "extraResources": [
+    "src/assets/**/*",
+    {
+      "from": "resources/bin/",
+      "to": "bin/",
+      "filter": [
+        "whisper-cpp-*",
+        "whisper-server-*",
+        "linux-fast-paste",
+        "linux-key-listener*",
+        "*.so*"
+      ]
+    }
+  ],
+  "linux": {
+    "target": ["AppImage", "deb"],
+    "executableName": "openmur",
+    "icon": "src/assets/icon.png",
+    "category": "Utility",
+    "artifactName": "openmur-${version}-${os}-${arch}.${ext}",
+    "desktop": {
+      "entry": {
+        "StartupWMClass": "open-mur",
+        "StartupNotify": "false",
+        "Terminal": "false",
+        "Categories": "Utility;Audio;",
+        "Keywords": "dictation;speech;voice;whisper;openmur;"
+      }
+    }
+  },
+  "deb": {
+    "afterInstall": "resources/linux/after-install-openmur.sh",
+    "depends": ["ydotool"],
+    "recommends": ["ydotoold", "xdotool", "wtype", "wl-clipboard", "xclip", "xsel"]
+  }
+}

@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* OpenWhispr Theme — registers color tokens with Tailwind v4.
+  /* openMur Theme — registers color tokens with Tailwind v4.
      These are the light-mode defaults; .dark overrides them below. */
   --color-primary: #2563eb;
   --color-primary-foreground: #ffffff;
@@ -135,6 +135,79 @@
   --shadow-card-hover-subtle: 0 2px 8px -2px rgba(0, 0, 0, 0.12);
 }
 
+/* openMur brand palette */
+:root.local-brand {
+  --openmur-bg-light: #f4f6fc;
+  --openmur-bg-dark: #1a1826;
+  --openmur-brand: #889eff;
+  --openmur-text-on-light: #1a1826;
+  --openmur-text-on-dark: #f4f6fc;
+
+  --color-background: #f4f6fc;
+  --color-foreground: #1a1826;
+  --color-card: #ffffff;
+  --color-card-foreground: #1a1826;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1a1826;
+  --color-primary: #889eff;
+  --color-primary-foreground: #f4f6fc;
+  --color-secondary: #e8ebf6;
+  --color-secondary-foreground: #1a1826;
+  --color-muted: #e8ebf6;
+  --color-muted-foreground: #5a576e;
+  --color-accent: #889eff;
+  --color-accent-foreground: #1a1826;
+  --color-border: #d4d8e8;
+  --color-input: #ffffff;
+  --color-ring: #889eff;
+  --color-link: #889eff;
+  --color-info: #889eff;
+  --color-surface-0: #f4f6fc;
+  --color-surface-1: #eef1fa;
+  --color-surface-2: #ffffff;
+  --color-surface-3: #e8ebf6;
+  --color-surface-raised: #e2e6f4;
+  --color-border-subtle: #dce0ee;
+  --color-border-hover: #c8cde0;
+  --color-border-active: #889eff;
+  --shadow-selected-glow:
+    inset 0 0 0 1px rgb(136 158 255 / 0.28), 0 0 16px -4px rgb(136 158 255 / 0.35);
+}
+
+.dark.local-brand {
+  --color-background: #1a1826;
+  --color-foreground: #f4f6fc;
+  --color-card: #222033;
+  --color-card-foreground: #f4f6fc;
+  --color-popover: #252238;
+  --color-popover-foreground: #f4f6fc;
+  --color-primary: #889eff;
+  --color-primary-foreground: #1a1826;
+  --color-secondary: #252238;
+  --color-secondary-foreground: #f4f6fc;
+  --color-muted: #1f1d2e;
+  --color-muted-foreground: #a8a9bc;
+  --color-accent: #889eff;
+  --color-accent-foreground: #1a1826;
+  --color-border: #353348;
+  --color-input: #14121f;
+  --color-ring: #889eff;
+  --color-link: #889eff;
+  --color-info: #889eff;
+  --color-surface-0: #1a1826;
+  --color-surface-1: #1f1d2e;
+  --color-surface-2: #222033;
+  --color-surface-3: #252238;
+  --color-surface-raised: #2b293d;
+  --color-border-subtle: #353348;
+  --color-border-hover: #45435a;
+  --color-border-active: #889eff;
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  --shadow-card-hover: 0 4px 12px rgb(0 0 0 / 0.4), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --shadow-selected-glow:
+    inset 0 0 0 1px rgb(136 158 255 / 0.35), 0 0 20px -4px rgb(136 158 255 / 0.4);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -176,6 +249,30 @@
   body:has(.meeting-notification-window) #root {
     background: transparent;
   }
+
+  /* Control panel: rounded frameless window (Linux uses transparent shell) */
+  body.control-panel-shell {
+    background: transparent !important;
+  }
+
+  body.control-panel-shell #root {
+    background: transparent;
+    min-height: 100vh;
+  }
+
+  body.control-panel-shell .control-panel-window {
+    min-height: 100vh;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 12px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  body.control-panel-shell.control-panel-maximized .control-panel-window {
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -188,7 +285,7 @@
   }
 }
 
-/* OpenWhispr Brand Typography */
+/* openMur Brand Typography */
 .brand-heading {
   font-family: var(--font-family-sans);
   font-weight: 600;

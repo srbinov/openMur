@@ -32,11 +32,12 @@ class LinuxKeyManager extends EventEmitter {
     if (line === "KEY_DOWN") {
       debugLogger.debug("[LinuxKeyManager] KEY_DOWN detected", { key });
       if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
+      // Push-to-talk can run for minutes; only force-release if KEY_UP is lost (10 min safety).
       this.watchdogTimer = setTimeout(() => {
-        debugLogger.warn("[LinuxKeyManager] Watchdog: no KEY_UP within 30s, forcing release");
+        debugLogger.warn("[LinuxKeyManager] Watchdog: no KEY_UP within 10min, forcing release");
         this.emit("key-up", this.currentKey);
         this.watchdogTimer = null;
-      }, 30000);
+      }, 600000);
       this.emit("key-down", key);
       return;
     }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { OPENWHISPR_API_URL } from "../config/constants";
+import { OPENMUR_API_URL } from "../config/constants";
 import { authClient } from "../lib/auth";
 import { Button } from "./ui/button";
 import { Mail, Loader2, Check, RefreshCw } from "lucide-react";
@@ -26,9 +26,9 @@ export default function EmailVerificationStep({ email, onVerified }: EmailVerifi
   }, [resendCooldown]);
 
   useEffect(() => {
-    if (!OPENWHISPR_API_URL || verified) return;
+    if (!OPENMUR_API_URL || verified) return;
 
-    const url = `${OPENWHISPR_API_URL}/api/auth/verification-status?email=${encodeURIComponent(email)}`;
+    const url = `${OPENMUR_API_URL}/api/auth/verification-status?email=${encodeURIComponent(email)}`;
 
     pollRef.current = setInterval(async () => {
       try {
@@ -78,7 +78,7 @@ export default function EmailVerificationStep({ email, onVerified }: EmailVerifi
         <div className="text-center mb-4">
           <img
             src={logoIcon}
-            alt="OpenWhispr"
+            alt="openMur"
             className="w-12 h-12 mx-auto mb-2.5 rounded-lg shadow-sm"
           />
           <div className="w-8 h-8 mx-auto bg-success/10 rounded-full flex items-center justify-center mb-2">
@@ -100,7 +100,7 @@ export default function EmailVerificationStep({ email, onVerified }: EmailVerifi
       <div className="text-center mb-4">
         <img
           src={logoIcon}
-          alt="OpenWhispr"
+          alt="openMur"
           className="w-12 h-12 mx-auto mb-2.5 rounded-lg shadow-sm"
         />
         <div className="w-8 h-8 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-3">

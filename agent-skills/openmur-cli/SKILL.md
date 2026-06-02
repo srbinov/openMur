@@ -1,19 +1,19 @@
 ---
-name: openwhispr-cli
-description: Use this skill whenever the user wants to operate on OpenWhispr notes, folders, transcriptions, or audio from a terminal or shell. The OpenWhispr CLI (`openwhispr` binary, npm package `@openwhispr/cli`) talks to either the local desktop app or the cloud API and exposes every operation needed for managing notes, folders, transcriptions, audio, plus auth and config. Trigger this skill when the user mentions "openwhispr cli", running shell commands against OpenWhispr, automating note workflows, cleaning up a transcription, building agent integrations against OpenWhispr, or scripting any OpenWhispr operation — even if they don't say "CLI" explicitly.
+name: openmur-cli
+description: Use this skill whenever the user wants to operate on openMur notes, folders, transcriptions, or audio from a terminal or shell. The openMur CLI (`openmur` binary, npm package `@openmur/cli`) talks to either the local desktop app or the cloud API and exposes every operation needed for managing notes, folders, transcriptions, audio, plus auth and config. Trigger this skill when the user mentions "openmur cli", running shell commands against openMur, automating note workflows, cleaning up a transcription, building agent integrations against openMur, or scripting any openMur operation — even if they don't say "CLI" explicitly.
 ---
 
-# OpenWhispr CLI
+# openMur CLI
 
-Use this reference when running the `openwhispr` command-line tool. The CLI is a single binary that operates against either the local desktop app (via a loopback HTTP bridge) or the cloud REST API. The same command works against both backends.
+Use this reference when running the `openmur` command-line tool. The CLI is a single binary that operates against either the local desktop app (via a loopback HTTP bridge) or the cloud REST API. The same command works against both backends.
 
 ## Install
 
 ```bash
-npm install -g @openwhispr/cli
+npm install -g @openmur/cli
 ```
 
-Requires Node.js 20 or later. Verify with `openwhispr --version`. If the user reports `command not found`, ensure their npm global bin is on `$PATH`.
+Requires Node.js 20 or later. Verify with `openmur --version`. If the user reports `command not found`, ensure their npm global bin is on `$PATH`.
 
 ## Backends
 
@@ -22,29 +22,29 @@ Every command runs against one of two backends. The behavior is identical from t
 | Backend | What it talks to | Use when |
 |---------|------------------|----------|
 | **local** | Desktop app's loopback HTTP bridge on `127.0.0.1` | The desktop app is running. Authoritative during/right after a recording. |
-| **remote** | `https://api.openwhispr.com/api/v1` | Desktop is closed, or running on a different machine, or the user wants cloud-side semantics. |
+| **remote** | `https://api.openmur.com/api/v1` | Desktop is closed, or running on a different machine, or the user wants cloud-side semantics. |
 
 ### How the CLI picks a backend
 
 Resolution order (first match wins):
 
 1. The `--local` or `--remote` flag on the command
-2. The `OPENWHISPR_BACKEND` environment variable (`local`, `remote`, or `auto`)
-3. The `backend` key in `~/.openwhispr/cli-config.json`
+2. The `OPENMUR_BACKEND` environment variable (`local`, `remote`, or `auto`)
+3. The `backend` key in `~/.openmur/cli-config.json`
 4. Auto-detect: local if the desktop bridge is reachable, otherwise remote if an API key is configured, otherwise error with guidance
 
 ### Local backend (no setup needed)
 
-When the desktop app starts, it writes `{version, port, token}` to `~/.openwhispr/cli-bridge.json` with mode `0600`. The CLI reads it automatically. If the file is missing or stale, local is treated as unavailable.
+When the desktop app starts, it writes `{version, port, token}` to `~/.openmur/cli-bridge.json` with mode `0600`. The CLI reads it automatically. If the file is missing or stale, local is treated as unavailable.
 
 ### Remote backend (needs an API key)
 
 Generate a key in the desktop app under **Integrations > API Keys**, then run:
 
 ```bash
-openwhispr auth login    # prompts for the key, stores it 0600 in ~/.openwhispr/cli-config.json
-openwhispr auth status   # confirm it works
-openwhispr auth logout   # clear it
+openmur auth login    # prompts for the key, stores it 0600 in ~/.openmur/cli-config.json
+openmur auth status   # confirm it works
+openmur auth logout   # clear it
 ```
 
 API keys are scoped server-side. Match scopes to the commands the user needs to run:
@@ -90,25 +90,25 @@ Honor these exit codes when scripting or recovering from errors:
 
 ## Commands
 
-Noun-verb syntax: `openwhispr <noun> <verb>`. Same convention as `gh`, `kubectl`, `aws`, `stripe`.
+Noun-verb syntax: `openmur <noun> <verb>`. Same convention as `gh`, `kubectl`, `aws`, `stripe`.
 
 ### Notes
 
 ```bash
-openwhispr notes list [--folder <id>] [--limit N] [--format json|table]
-openwhispr notes get <id> [--format json|markdown]
-openwhispr notes create --content <text> | --content-file <path>
+openmur notes list [--folder <id>] [--limit N] [--format json|table]
+openmur notes get <id> [--format json|markdown]
+openmur notes create --content <text> | --content-file <path>
                         [--title <t>] [--folder <id>]
-openwhispr notes update <id> [--content <t>] [--folder <id>] [--title <t>]
-openwhispr notes delete <id> [--dry-run] [--format json]
-openwhispr notes search <query> [--limit N] [--format json|table]
+openmur notes update <id> [--content <t>] [--folder <id>] [--title <t>]
+openmur notes delete <id> [--dry-run] [--format json]
+openmur notes search <query> [--limit N] [--format json|table]
 ```
 
 ### Folders
 
 ```bash
-openwhispr folders list [--format json|table]
-openwhispr folders create --name <name> [--sort-order <n>]
+openmur folders list [--format json|table]
+openmur folders create --name <name> [--sort-order <n>]
 ```
 
 Folder names must be unique per user. Create returns 409-equivalent on duplicates (exit code 1 with a clear message).
@@ -116,9 +116,9 @@ Folder names must be unique per user. Create returns 409-equivalent on duplicate
 ### Transcriptions
 
 ```bash
-openwhispr transcriptions list [--limit N] [--format json|table]
-openwhispr transcriptions get <id> [--format json|text]
-openwhispr transcriptions delete <id> [--dry-run] [--format json]
+openmur transcriptions list [--limit N] [--format json|table]
+openmur transcriptions get <id> [--format json|text]
+openmur transcriptions delete <id> [--dry-run] [--format json]
 ```
 
 `--format text` returns the plain transcript text body. SRT/VTT export is not currently exposed by the CLI; use `--format json` and post-process if you need timestamped subtitle formats.
@@ -126,7 +126,7 @@ openwhispr transcriptions delete <id> [--dry-run] [--format json]
 ### Audio
 
 ```bash
-openwhispr audio delete <transcription-id> [--format json]
+openmur audio delete <transcription-id> [--format json]
 ```
 
 Local-only. The cloud API does not store audio. Running this with `--remote` returns a clear "not supported" error (exit 1).
@@ -134,27 +134,27 @@ Local-only. The cloud API does not store audio. Running this with `--remote` ret
 ### Auth
 
 ```bash
-openwhispr auth login [--api-key <key>]   # prompts on stdin if --api-key omitted
-openwhispr auth status [--format json]
-openwhispr auth logout
+openmur auth login [--api-key <key>]   # prompts on stdin if --api-key omitted
+openmur auth status [--format json]
+openmur auth logout
 ```
 
-`auth status` reads the stored config and reports whether a key is configured — it does **not** make a network call. To verify the key actually works, use `openwhispr doctor`.
+`auth status` reads the stored config and reports whether a key is configured — it does **not** make a network call. To verify the key actually works, use `openmur doctor`.
 
 ### Config
 
 ```bash
-openwhispr config get [--format json]
-openwhispr config set backend auto|local|remote
-openwhispr config set api-base https://api.openwhispr.com
+openmur config get [--format json]
+openmur config set backend auto|local|remote
+openmur config set api-base https://api.openmur.com
 ```
 
-Only `backend` and `api-base` are settable via `config set`. The API key is managed through `auth login`/`auth logout`. `api-base` is overridable for self-hosted or staging deployments (default: production cloud). The `OPENWHISPR_API_BASE` env var also overrides it for a single invocation.
+Only `backend` and `api-base` are settable via `config set`. The API key is managed through `auth login`/`auth logout`. `api-base` is overridable for self-hosted or staging deployments (default: production cloud). The `OPENMUR_API_BASE` env var also overrides it for a single invocation.
 
 ### Doctor
 
 ```bash
-openwhispr doctor [--format json]
+openmur doctor [--format json]
 ```
 
 Probes both backends and reports each independently. Exit 0 if at least one is reachable; exit 2 if neither. Run this first when the user reports "the CLI isn't working" — it isolates whether the problem is the desktop bridge, the API key, or something else.
@@ -162,7 +162,7 @@ Probes both backends and reports each independently. Exit 0 if at least one is r
 ### Version
 
 ```bash
-openwhispr --version    # or: openwhispr version
+openmur --version    # or: openmur version
 ```
 
 ## Workflows
@@ -172,17 +172,17 @@ openwhispr --version    # or: openwhispr version
 Pipe `notes list --format json` through `jq` for filtering, then iterate:
 
 ```bash
-openwhispr notes list --limit 100 --format json | \
+openmur notes list --limit 100 --format json | \
   jq -r '.[] | select(.title | contains("draft")) | .id' | \
   while read id; do
-    openwhispr notes delete "$id"
+    openmur notes delete "$id"
   done
 ```
 
 ### Searching for context before writing a note
 
 ```bash
-openwhispr notes search "quarterly budget" --format json | jq '.[].id'
+openmur notes search "quarterly budget" --format json | jq '.[].id'
 ```
 
 Use the IDs returned to read related notes with `notes get` before composing the new note's content.
@@ -193,8 +193,8 @@ The CLI reads/writes these files. Both should always be `0600`.
 
 | File | Written by | Contains |
 |------|-----------|----------|
-| `~/.openwhispr/cli-bridge.json` | The desktop app at startup | `{version, port, token}` for the loopback bridge |
-| `~/.openwhispr/cli-config.json` | The CLI's `auth login` and `config set` | `{backend, apiBase, apiKey}` |
+| `~/.openmur/cli-bridge.json` | The desktop app at startup | `{version, port, token}` for the loopback bridge |
+| `~/.openmur/cli-config.json` | The CLI's `auth login` and `config set` | `{backend, apiBase, apiKey}` |
 
 The CLI writes both files with `0600`. If you see them with looser permissions (e.g., after manual editing), tighten with `chmod 0600 <file>`.
 
@@ -202,10 +202,10 @@ The CLI writes both files with `0600`. If you see them with looser permissions (
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `Backend unreachable` (exit 2) on every command | Desktop closed and no API key | Start desktop, or `openwhispr auth login` |
+| `Backend unreachable` (exit 2) on every command | Desktop closed and no API key | Start desktop, or `openmur auth login` |
 | `Auth failed` (exit 3) on remote commands only | API key revoked, expired, or missing scope | Regenerate key with the right scopes |
 | `Not found` (exit 4) on a known-existing note | Wrong backend — the note is on the other side, not yet synced | Try the opposite backend (`--local` or `--remote`) |
-| Config file readable by other users | File created or edited outside the CLI | `chmod 0600 ~/.openwhispr/cli-config.json` |
+| Config file readable by other users | File created or edited outside the CLI | `chmod 0600 ~/.openmur/cli-config.json` |
 
 ## Programmatic invocation
 

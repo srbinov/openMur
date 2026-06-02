@@ -446,8 +446,8 @@ export default function TranscriptionModelPicker({
       loadLocalModels();
       loadParakeetModels();
     };
-    window.addEventListener("openwhispr-models-cleared", handleModelsCleared);
-    return () => window.removeEventListener("openwhispr-models-cleared", handleModelsCleared);
+    window.addEventListener("openmur-models-cleared", handleModelsCleared);
+    return () => window.removeEventListener("openmur-models-cleared", handleModelsCleared);
   }, [loadLocalModels, loadParakeetModels]);
 
   useEffect(() => {

@@ -4,6 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const crypto = require("crypto");
 const debugLogger = require("./debugLogger");
+const { LOCAL_ONLY, TRANSCRIPTION_RETENTION_MINUTES } = require("./localOnlyFlag");
 const tokenStore = require("./tokenStore");
 const { classifyAndLog } = require("./networkErrors");
 const GnomeShortcutManager = require("./gnomeShortcut");
@@ -82,7 +83,7 @@ const CLOUD_CHUNK_CONCURRENCY = 5;
 const CLOUD_CHUNK_SEGMENT_SECONDS = 240;
 
 function buildMultipartBody(fileBuffer, fileName, contentType, fields = {}) {
-  const boundary = `----OpenWhispr${Date.now()}`;
+  const boundary = `----openMur${Date.now()}`;
   const parts = [];
 
   parts.push(
@@ -288,7 +289,7 @@ class IPCHandlers {
     this.linuxPortalAudioManager = managers.linuxPortalAudioManager;
     this.meetingAecManager = managers.meetingAecManager;
     this.oauthProtocolRegistered = managers.oauthProtocolRegistered === true;
-    this.oauthProtocol = managers.oauthProtocol || "openwhispr";
+    this.oauthProtocol = managers.oauthProtocol || "openmur";
     this.sessionId = crypto.randomUUID();
     this.assemblyAiStreaming = null;
     this.deepgramStreaming = null;
@@ -317,6 +318,9 @@ class IPCHandlers {
     liveSpeakerIdentifier.setDiarizationManager(this.diarizationManager);
     this._setupTextEditMonitor();
     this._setupAudioCleanup();
+    if (LOCAL_ONLY) {
+      this._setupTranscriptionCleanup();
+    }
     this._logDetectedGpus();
     this.setupHandlers();
 
@@ -343,6 +347,10 @@ class IPCHandlers {
   }
 
   _resolveWhisperVadOptions(context) {
+    // Push-to-talk controls start/stop — VAD max-speech-duration would truncate long dictation.
+    if (LOCAL_ONLY && context === "dictation") {
+      return { vadEnabled: false, vadConfig: null };
+    }
     const settings = this._getWhisperVadSettings();
     const {
       dictationSileroEnabled,
@@ -554,6 +562,44 @@ class IPCHandlers {
     }, SIX_HOURS_MS);
   }
 
+  _setupTranscriptionCleanup() {
+    const ONE_MINUTE_MS = 60 * 1000;
+
+    const run = () => {
+      try {
+        this._purgeExpiredTranscriptions();
+      } catch (error) {
+        debugLogger.error("Transcription purge failed", { error: error.message }, "database");
+      }
+    };
+
+    run();
+    this._transcriptionCleanupInterval = setInterval(run, ONE_MINUTE_MS);
+  }
+
+  _purgeExpiredTranscriptions() {
+    const result = this.databaseManager.purgeExpiredTranscriptions(TRANSCRIPTION_RETENTION_MINUTES);
+    if (!result?.ids?.length) return result;
+
+    for (const id of result.ids) {
+      try {
+        this.audioStorageManager.deleteAudio(id);
+      } catch (error) {
+        debugLogger.debug("Audio delete during transcription purge failed", {
+          id,
+          error: error.message,
+        });
+      }
+      this.broadcastToWindows("transcription-deleted", { id });
+    }
+
+    debugLogger.debug("Purged expired transcriptions", {
+      deleted: result.deleted,
+      retentionMinutes: TRANSCRIPTION_RETENTION_MINUTES,
+    });
+    return result;
+  }
+
   _setupTextEditMonitor() {
     if (!this.textEditMonitor) return;
 
@@ -743,6 +789,9 @@ class IPCHandlers {
       if (result?.success && result?.transcription) {
         setImmediate(() => {
           this.broadcastToWindows("transcription-added", result.transcription);
+          if (LOCAL_ONLY) {
+            this._purgeExpiredTranscriptions();
+          }
         });
       }
       return result;
@@ -1446,34 +1495,58 @@ class IPCHandlers {
 
     ipcMain.handle("paste-text", async (event, text, options) => {
       const mainWindow = this.windowManager?.mainWindow;
-      const targetPid = this.textEditMonitor?.lastTargetPid || null;
+      const controlPanel = this.windowManager?.controlPanelWindow;
+      const monitor = this.textEditMonitor;
+      const targetPid = monitor?.lastTargetPid || null;
+      const targetWindowId = monitor?.lastTargetWindowId || null;
+      const targetWindowClass = monitor?.lastTargetWindowClass || null;
+      const targetWindowComm = monitor?.lastTargetWindowComm || null;
 
-      // Activating the target by PID is more reliable than hide()'s implicit
-      // focus hand-off for Chromium apps like Claude desktop and Brave (#668).
+      this.windowManager?.hideDictationPreviewForPaste?.();
+
+      // Refocus the app that had focus when the user started dictation (not our pill/UI).
       let activated = false;
       if (process.platform === "darwin" && this.textEditMonitor) {
         activated = await this.textEditMonitor.activateTargetPid();
+      } else if (process.platform === "linux" && monitor) {
+        activated = await monitor.activateTargetWindow();
+        if (activated) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
       }
 
-      if (!activated && mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) {
+      const ourWindowFocused =
+        (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) ||
+        (controlPanel && !controlPanel.isDestroyed() && controlPanel.isFocused());
+
+      if (!activated && ourWindowFocused) {
         if (process.platform === "darwin") {
           mainWindow.hide();
           await new Promise((resolve) => setTimeout(resolve, 120));
           mainWindow.showInactive();
         } else {
-          mainWindow.blur();
-          await new Promise((resolve) => setTimeout(resolve, 80));
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.blur();
+          if (controlPanel && !controlPanel.isDestroyed()) controlPanel.blur();
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
       }
       const result = await this.clipboardManager.pasteText(text, {
         ...options,
         webContents: event.sender,
+        targetWindowId,
+        targetWindowClass,
+        targetWindowComm,
       });
       debugLogger.debug("[AutoLearn] Paste completed", {
         autoLearnEnabled: this._autoLearnEnabled,
         hasMonitor: !!this.textEditMonitor,
         targetPid,
+        targetWindowId: this.textEditMonitor?.lastTargetWindowId,
+        targetClass: this.textEditMonitor?.lastTargetWindowClass,
       });
+      if (this.textEditMonitor) {
+        this.textEditMonitor.clearDictationTarget();
+      }
       if (this.textEditMonitor && this._autoLearnEnabled) {
         setTimeout(() => {
           try {
@@ -2014,7 +2087,7 @@ class IPCHandlers {
 
       // Delete downloaded models
       try {
-        const whisperDir = path.join(os.homedir(), ".cache", "openwhispr", "whisper-models");
+        const whisperDir = path.join(os.homedir(), ".cache", "openmur", "whisper-models");
         if (fs.existsSync(whisperDir)) fs.rmSync(whisperDir, { recursive: true, force: true });
       } catch (e) {
         errors.push(`Whisper models: ${e.message}`);
@@ -3366,16 +3439,16 @@ class IPCHandlers {
     })();
 
     const getApiUrl = () =>
-      process.env.OPENWHISPR_API_URL ||
-      process.env.VITE_OPENWHISPR_API_URL ||
-      runtimeEnv.VITE_OPENWHISPR_API_URL ||
+      process.env.OPENMUR_API_URL ||
+      process.env.VITE_OPENMUR_API_URL ||
+      runtimeEnv.VITE_OPENMUR_API_URL ||
       "";
 
     const getAuthUrl = () =>
       process.env.AUTH_URL ||
       process.env.VITE_AUTH_URL ||
       runtimeEnv.VITE_AUTH_URL ||
-      "https://auth.openwhispr.com";
+      "https://auth.openmur.com";
 
     const getSessionCookiesFromWindow = async (win) => {
       const scopedUrls = [getAuthUrl(), getApiUrl()].filter(Boolean);
@@ -3450,7 +3523,7 @@ class IPCHandlers {
     ipcMain.handle("cloud-transcribe", async (event, audioBuffer, opts = {}) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -3590,7 +3663,7 @@ class IPCHandlers {
               ...vadOptions,
             });
           }
-        } else if (settings?.cloudTranscriptionMode === "openwhispr") {
+        } else if (settings?.cloudTranscriptionMode === "openmur") {
           const win = BrowserWindow.fromWebContents(event.sender);
           if (win) {
             const authHeader = await getAuthHeaderFromWindow(win);
@@ -3610,7 +3683,7 @@ class IPCHandlers {
                     authHeader,
                     multipartFields,
                   });
-                  result = { text, source: "openwhispr", model: "cloud" };
+                  result = { text, source: "openmur", model: "cloud" };
                 } else {
                   const { body, boundary } = buildMultipartBody(
                     buffer,
@@ -3623,7 +3696,7 @@ class IPCHandlers {
                   const responseData = interpretTranscribeResponse(data);
                   result = {
                     text: responseData.text,
-                    source: "openwhispr",
+                    source: "openmur",
                     model: "cloud",
                   };
                 }
@@ -4117,7 +4190,7 @@ class IPCHandlers {
       const postServerToken = async (path, body = {}) => {
         const apiUrl = getApiUrl();
         if (!apiUrl) {
-          const err = new Error("OpenWhispr API URL not configured");
+          const err = new Error("openMur API URL not configured");
           err.code = "NO_API";
           throw err;
         }
@@ -4967,7 +5040,7 @@ class IPCHandlers {
           rms: rms.toFixed(6),
           samples: samples.length,
         });
-        if (rms < 0.002) return;
+        if (rms < 0.0015) return;
 
         const wav = pcm16ToWav(pcm);
 
@@ -5561,8 +5634,15 @@ class IPCHandlers {
       dictationPreviewModel = model;
       dictationPreviewLanguage = language || null;
       dictationPreviewChunkCount = 0;
-      this.windowManager.showTranscriptionPreview("");
-      dictationPreviewTimer = setInterval(() => transcribeDictationPreviewChunk(), 1500);
+      if (this.windowManager._localOnlyMode) {
+        this.windowManager.resetDictationPillPreview();
+        await this.windowManager.setDictationPillState("listening");
+      } else {
+        await this.windowManager.showTranscriptionPreview("", { anchor: "cursor", minimal: true });
+      }
+      if (!this.windowManager._localOnlyMode) {
+        dictationPreviewTimer = setInterval(() => transcribeDictationPreviewChunk(), 1200);
+      }
       return { success: true };
     });
 
@@ -5583,16 +5663,31 @@ class IPCHandlers {
 
     ipcMain.handle("dismiss-dictation-preview", async () => {
       resetDictationPreviewState();
-      this.windowManager.hideTranscriptionPreview();
+      if (this.windowManager._localOnlyMode) {
+        this.windowManager.resetDictationPillPreview();
+        await this.windowManager.setDictationPillState("idle");
+      } else {
+        this.windowManager.hideTranscriptionPreview();
+      }
       return { success: true };
     });
 
     ipcMain.handle("complete-dictation-preview", async (_event, { text } = {}) => {
+      const trimmed = typeof text === "string" ? text.trim() : "";
+      if (this.windowManager._localOnlyMode) {
+        resetDictationPreviewState();
+        if (trimmed) {
+          await this.windowManager.showDictationPillDone(trimmed);
+        } else {
+          await this.windowManager.setDictationPillState("idle");
+        }
+        return { success: true };
+      }
       if (!dictationPreviewSessionActive) {
         return { success: true };
       }
-      if (typeof text === "string" && text.trim()) {
-        this.windowManager.completeTranscriptionPreview(text);
+      if (trimmed) {
+        this.windowManager.completeTranscriptionPreview(trimmed);
       } else {
         resetDictationPreviewState();
         this.windowManager.hideTranscriptionPreview();
@@ -5607,7 +5702,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("resize-transcription-preview-window", async (_event, width, height) => {
-      if (!dictationPreviewSessionActive) {
+      if (!dictationPreviewSessionActive && !this.windowManager._localOnlyMode) {
         return { success: false, error: "Preview session not active" };
       }
       return this.windowManager.resizeTranscriptionPreview(width, height);
@@ -5619,12 +5714,32 @@ class IPCHandlers {
       }
       clearInterval(dictationPreviewTimer);
       dictationPreviewTimer = null;
-      await transcribeDictationPreviewChunk();
+      if (!this.windowManager._localOnlyMode) {
+        await transcribeDictationPreviewChunk();
+      } else {
+        dictationPreviewBuffer = [];
+      }
       resetDictationPreviewState({ preserveSession: true });
       if (!dictationPreviewSessionActive) {
         return { success: true };
       }
+      if (this.windowManager._localOnlyMode) {
+        await this.windowManager.setDictationPillState("processing");
+        return { success: true };
+      }
       this.windowManager.holdTranscriptionPreview(options);
+      return { success: true };
+    });
+
+    ipcMain.handle("set-dictation-pill-state", async (_event, state) => {
+      if (!this.windowManager._localOnlyMode) {
+        return { success: true };
+      }
+      const allowed = ["idle", "listening", "processing", "pasting", "done"];
+      if (!allowed.includes(state)) {
+        return { success: false, error: "Invalid pill state" };
+      }
+      await this.windowManager.setDictationPillState(state);
       return { success: true };
     });
 
@@ -5646,7 +5761,7 @@ class IPCHandlers {
     ipcMain.handle("cloud-reason", async (event, text, opts = {}) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -5732,7 +5847,7 @@ class IPCHandlers {
     ipcMain.on("cloud-agent-stream-start", async (event, messages, opts = {}) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -5825,7 +5940,7 @@ class IPCHandlers {
     ipcMain.handle("agent-web-search", async (event, query, numResults = 5) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -5868,7 +5983,7 @@ class IPCHandlers {
       async (event, text, audioDurationSeconds, opts = {}) => {
         try {
           const apiUrl = getApiUrl();
-          if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+          if (!apiUrl) throw new Error("openMur API URL not configured");
 
           const authHeader = await getAuthHeader(event);
           if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -5917,9 +6032,12 @@ class IPCHandlers {
     );
 
     ipcMain.handle("cloud-usage", async (event) => {
+      if (LOCAL_ONLY) {
+        return { success: true, wordsUsed: 0, limit: 0, isSubscribed: false, isTrial: false };
+      }
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -5949,7 +6067,7 @@ class IPCHandlers {
     const fetchStripeUrl = async (event, endpoint, errorPrefix, body) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -5993,7 +6111,7 @@ class IPCHandlers {
     ipcMain.handle("cloud-switch-plan", async (event, opts) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -6025,7 +6143,7 @@ class IPCHandlers {
     ipcMain.handle("cloud-preview-switch", async (event, opts) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -6057,7 +6175,7 @@ class IPCHandlers {
     ipcMain.handle("cloud-api-request", async (event, opts) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -6098,9 +6216,12 @@ class IPCHandlers {
     });
 
     ipcMain.handle("get-stt-config", async (event) => {
+      if (LOCAL_ONLY) {
+        return { success: true, provider: "local", streaming: false };
+      }
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -6130,7 +6251,7 @@ class IPCHandlers {
     ipcMain.handle("get-note-recording-config", async (event) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -6157,7 +6278,7 @@ class IPCHandlers {
     ipcMain.handle("transcribe-audio-file-cloud", async (event, filePath) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+        if (!apiUrl) throw new Error("openMur API URL not configured");
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -6272,7 +6393,7 @@ class IPCHandlers {
       try {
         const apiUrl = getApiUrl();
         if (!apiUrl) {
-          throw new Error("OpenWhispr API URL not configured");
+          throw new Error("openMur API URL not configured");
         }
 
         const authHeader = await getAuthHeader(event);
@@ -6308,7 +6429,7 @@ class IPCHandlers {
       try {
         const apiUrl = getApiUrl();
         if (!apiUrl) {
-          throw new Error("OpenWhispr API URL not configured");
+          throw new Error("openMur API URL not configured");
         }
 
         const authHeader = await getAuthHeader(event);
@@ -6346,7 +6467,7 @@ class IPCHandlers {
       try {
         const apiUrl = getApiUrl();
         if (!apiUrl) {
-          throw new Error("OpenWhispr API URL not configured");
+          throw new Error("openMur API URL not configured");
         }
 
         const authHeader = await getAuthHeader(event);
@@ -6440,25 +6561,25 @@ class IPCHandlers {
         // Parse lines
         const lines = envContent.split("\n");
         const logLevelIndex = lines.findIndex((line) =>
-          line.trim().startsWith("OPENWHISPR_LOG_LEVEL=")
+          line.trim().startsWith("OPENMUR_LOG_LEVEL=")
         );
 
         if (enabled) {
           // Set to debug
           if (logLevelIndex !== -1) {
-            lines[logLevelIndex] = "OPENWHISPR_LOG_LEVEL=debug";
+            lines[logLevelIndex] = "OPENMUR_LOG_LEVEL=debug";
           } else {
             // Add new line
             if (lines.length > 0 && lines[lines.length - 1] !== "") {
               lines.push("");
             }
             lines.push("# Debug logging setting");
-            lines.push("OPENWHISPR_LOG_LEVEL=debug");
+            lines.push("OPENMUR_LOG_LEVEL=debug");
           }
         } else {
           // Remove or set to info
           if (logLevelIndex !== -1) {
-            lines[logLevelIndex] = "OPENWHISPR_LOG_LEVEL=info";
+            lines[logLevelIndex] = "OPENMUR_LOG_LEVEL=info";
           }
         }
 
@@ -6466,7 +6587,7 @@ class IPCHandlers {
         fs.writeFileSync(envPath, lines.join("\n"), "utf8");
 
         // Update environment variable
-        process.env.OPENWHISPR_LOG_LEVEL = enabled ? "debug" : "info";
+        process.env.OPENMUR_LOG_LEVEL = enabled ? "debug" : "info";
 
         // Refresh logger state
         debugLogger.refreshLogLevel();
@@ -6536,7 +6657,7 @@ class IPCHandlers {
     const fetchStreamingToken = async (event) => {
       const apiUrl = getApiUrl();
       if (!apiUrl) {
-        throw new Error("OpenWhispr API URL not configured");
+        throw new Error("openMur API URL not configured");
       }
 
       const authHeader = await getAuthHeader(event);
@@ -6737,7 +6858,7 @@ class IPCHandlers {
 
     const fetchDeepgramStreamingTokenFromWindow = async (windowId) => {
       const apiUrl = getApiUrl();
-      if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+      if (!apiUrl) throw new Error("openMur API URL not configured");
 
       const win = BrowserWindow.fromId(windowId);
       if (!win || win.isDestroyed()) throw new Error("Window not available for token refresh");
@@ -6767,7 +6888,7 @@ class IPCHandlers {
     const fetchDeepgramStreamingToken = async (event) => {
       const apiUrl = getApiUrl();
       if (!apiUrl) {
-        throw new Error("OpenWhispr API URL not configured");
+        throw new Error("openMur API URL not configured");
       }
 
       const authHeader = await getAuthHeader(event);

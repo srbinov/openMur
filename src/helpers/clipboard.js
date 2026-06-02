@@ -83,6 +83,7 @@ class ClipboardManager {
     this.linuxFastPasteChecked = false;
     this.portalDenied = false;
     this._kwinScriptPath = null;
+    this._streamingPasteSaved = null;
 
     process.on("exit", () => {
       if (this._kwinScriptPath) {
@@ -397,7 +398,7 @@ class ClipboardManager {
   _getPortalTokenPath() {
     const cacheDir = path.join(
       process.env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache"),
-      "openwhispr"
+      "openmur"
     );
     return path.join(cacheDir, "portal-paste-token");
   }
@@ -655,6 +656,29 @@ class ClipboardManager {
     }
   }
 
+  beginStreamingPaste() {
+    if (this._streamingPasteSaved) return;
+    this._streamingPasteSaved = this._saveClipboard();
+    if (process.platform === "linux") {
+      this._streamingPasteSavedPrimary = this._readPrimarySelection();
+    }
+  }
+
+  endStreamingPaste() {
+    const saved = this._streamingPasteSaved;
+    const savedPrimary =
+      process.platform === "linux" ? this._streamingPasteSavedPrimary : undefined;
+    this._streamingPasteSaved = null;
+    this._streamingPasteSavedPrimary = undefined;
+    if (!saved) return;
+    setTimeout(() => {
+      this._restoreClipboard(saved);
+      if (savedPrimary !== undefined) {
+        this._writePrimarySelection(savedPrimary);
+      }
+    }, 150);
+  }
+
   async pasteText(text, options = {}) {
     const startTime = Date.now();
     const platform = process.platform;
@@ -663,7 +687,7 @@ class ClipboardManager {
     const allowClipboardFallback = options.allowClipboardFallback === true;
 
     try {
-      const shouldRestore = options.restoreClipboard !== false;
+      const shouldRestore = options.restoreClipboard !== false && !this._streamingPasteSaved;
       const originalClipboard = shouldRestore ? this._saveClipboard() : null;
       const originalPrimary =
         platform === "linux" && shouldRestore ? this._readPrimarySelection() : null;
@@ -1234,8 +1258,19 @@ class ClipboardManager {
       }
     };
 
-    const targetWindowId = preDetectTargetWindow();
-    let detectedWindowClass = preDetectWindowClass(targetWindowId);
+    const usedStoredTarget = !!options.targetWindowId?.trim?.();
+    const targetWindowId =
+      options.targetWindowId?.trim?.() || preDetectTargetWindow();
+    let detectedWindowClass =
+      options.targetWindowClass?.trim?.() || preDetectWindowClass(targetWindowId);
+
+    if (usedStoredTarget) {
+      debugLogger.debug(
+        "Using hotkey-captured target window for paste",
+        { targetWindowId, detectedWindowClass },
+        "clipboard"
+      );
+    }
 
     if (!detectedWindowClass && isKde) {
       detectedWindowClass = this._detectKdeWindowClass();
@@ -1251,7 +1286,8 @@ class ClipboardManager {
       }
     }
 
-    const detectedWindowComm = preDetectWindowComm(targetWindowId);
+    const detectedWindowComm =
+      options.targetWindowComm?.trim?.() || preDetectWindowComm(targetWindowId);
     const windowSignals = [detectedWindowClass, detectedWindowComm].filter(Boolean);
     const signalsMatch = (needle) => windowSignals.some((signal) => signal.includes(needle));
     const detectedIsKonsole = signalsMatch("konsole");
@@ -1536,7 +1572,7 @@ class ClipboardManager {
       // wlroots (Sway, Hyprland, etc.): wtype is native; then xdotool for XWayland; ydotool last
       candidates = [...wtypeEntry, ...xdotoolEntry, ...ydotoolEntry];
     } else {
-      // GNOME, KDE, or unknown Wayland: ydotool (uinput) works for all windows; xdotool for XWayland only
+      // GNOME, KDE, or unknown Wayland: ydotool (uinput); xdotool for XWayland; wtype last
       candidates = [...ydotoolEntry, ...xdotoolEntry, ...wtypeEntry];
     }
 
@@ -1559,7 +1595,8 @@ class ClipboardManager {
 
     const pasteWith = (tool) =>
       new Promise((resolve, reject) => {
-        const delay = isWayland ? 0 : PASTE_DELAYS.linux;
+        const delay =
+          isWayland && (usedStoredTarget || targetWindowId) ? PASTE_DELAYS.linux : isWayland ? 0 : PASTE_DELAYS.linux;
 
         setTimeout(() => {
           debugLogger.debug(
@@ -1790,17 +1827,17 @@ class ClipboardManager {
 
     let dialogMessage;
     if (isStuckPermission) {
-      dialogMessage = `🔒 OpenWhispr needs Accessibility permissions, but it looks like you may have OLD PERMISSIONS from a previous version.
+      dialogMessage = `🔒 openMur needs Accessibility permissions, but it looks like you may have OLD PERMISSIONS from a previous version.
 
-❗ COMMON ISSUE: If you've rebuilt/reinstalled OpenWhispr, the old permissions may be "stuck" and preventing new ones.
+❗ COMMON ISSUE: If you've rebuilt/reinstalled openMur, the old permissions may be "stuck" and preventing new ones.
 
 🔧 To fix this:
 1. Open System Settings → Privacy & Security → Accessibility
-2. Look for ANY old "OpenWhispr" entries and REMOVE them (click the - button)
+2. Look for ANY old "openMur" entries and REMOVE them (click the - button)
 3. Also remove any entries that say "Electron" or have unclear names
-4. Click the + button and manually add the NEW OpenWhispr app
+4. Click the + button and manually add the NEW openMur app
 5. Make sure the checkbox is enabled
-6. Restart OpenWhispr
+6. Restart openMur
 
 ⚠️ This is especially common during development when rebuilding the app.
 
@@ -1808,7 +1845,7 @@ class ClipboardManager {
 
 Would you like to open System Settings now?`;
     } else {
-      dialogMessage = `🔒 OpenWhispr needs Accessibility permissions to paste text into other applications.
+      dialogMessage = `🔒 openMur needs Accessibility permissions to paste text into other applications.
 
 📋 Current status: Clipboard copy works, but pasting (Cmd+V simulation) fails.
 
@@ -1816,8 +1853,8 @@ Would you like to open System Settings now?`;
 1. Open System Settings (or System Preferences on older macOS)
 2. Go to Privacy & Security → Accessibility
 3. Click the lock icon and enter your password
-4. Add OpenWhispr to the list and check the box
-5. Restart OpenWhispr
+4. Add openMur to the list and check the box
+5. Restart openMur
 
 ⚠️ Without this permission, dictated text will only be copied to clipboard but won't paste automatically.
 

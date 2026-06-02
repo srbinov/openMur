@@ -1,4 +1,8 @@
 const path = require("path");
+const { LOCAL_ONLY } = require("./localOnlyFlag");
+
+/** openMur dark background */
+const LOCAL_CONTROL_PANEL_BACKGROUND = "#1a1826";
 
 const isGnomeWayland =
   process.platform === "linux" &&
@@ -64,7 +68,7 @@ const MAIN_WINDOW_CONFIG = {
 const CONTROL_PANEL_CONFIG = {
   width: 1200,
   height: 800,
-  backgroundColor: "#1c1c2e",
+  backgroundColor: LOCAL_ONLY ? LOCAL_CONTROL_PANEL_BACKGROUND : "#1c1c2e",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -84,11 +88,16 @@ const CONTROL_PANEL_CONFIG = {
   resizable: true,
   show: false,
   frame: false,
+  roundedCorners: true,
+  ...(process.platform === "linux" && {
+    transparent: true,
+    backgroundColor: "#00000000",
+  }),
   ...(process.platform === "darwin" && {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 20, y: 20 },
   }),
-  transparent: false,
+  ...(process.platform !== "linux" && { transparent: false }),
   minimizable: true,
   maximizable: true,
   closable: true,
@@ -199,6 +208,19 @@ class WindowPositionUtil {
 
     x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - width));
     y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - height));
+
+    return { x, y, width, height };
+  }
+
+  /** Subtle listening pill anchored to bottom-center of the display containing the anchor point. */
+  static getCursorBottomIndicatorPosition(display, size = {}, options = {}) {
+    const width = size.width || 148;
+    const height = size.height || 44;
+    const bottomMargin = options.bottomMargin ?? 20;
+    const workArea = display.workArea || display.bounds;
+
+    const x = Math.round(workArea.x + (workArea.width - width) / 2);
+    const y = Math.max(workArea.y, workArea.y + workArea.height - height - bottomMargin);
 
     return { x, y, width, height };
   }

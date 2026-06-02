@@ -23,8 +23,8 @@ import type {
   ShareVisibility,
 } from "../../types/electron";
 
-const SHARE_VIEWER_BASE_URL = "https://notes.openwhispr.com";
-const LAST_VISIBILITY_KEY = "openwhispr.shareDefaultVisibility";
+const SHARE_VIEWER_BASE_URL = "https://notes.openmur.com";
+const LAST_VISIBILITY_KEY = "openmur.shareDefaultVisibility";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface ShareNoteDialogProps {

@@ -8,6 +8,7 @@ const FINAL_HIDE_DURATION_MS = 4000;
 const COPIED_RESET_MS = 1400;
 const HIDE_ANIMATION_MS = 220;
 const TARGET_WIDTH = 420;
+const MINIMAL_WIDTH = 148;
 
 export default function TranscriptionPreviewOverlay() {
   const { t } = useTranslation();
@@ -15,6 +16,7 @@ export default function TranscriptionPreviewOverlay() {
   const [finalText, setFinalText] = useState("");
   const [phase, setPhase] = useState<PreviewPhase>("listening");
   const [isVisible, setIsVisible] = useState(false);
+  const [isMinimal, setIsMinimal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
   const [countdownKey, setCountdownKey] = useState(0);
@@ -91,8 +93,9 @@ export default function TranscriptionPreviewOverlay() {
     }
 
     const nextHeight = Math.ceil(shellRef.current.getBoundingClientRect().height) + 16;
-    window.electronAPI.resizeTranscriptionPreviewWindow(TARGET_WIDTH, nextHeight).catch(() => {});
-  }, [isVisible]);
+    const width = isMinimal ? MINIMAL_WIDTH : TARGET_WIDTH;
+    window.electronAPI.resizeTranscriptionPreviewWindow(width, nextHeight).catch(() => {});
+  }, [isVisible, isMinimal]);
 
   useEffect(() => {
     if (!isVisible || !shellRef.current) return;
@@ -118,6 +121,10 @@ export default function TranscriptionPreviewOverlay() {
   }, [rawText, finalText, phase]);
 
   useEffect(() => {
+    const handlePreviewMinimal = window.electronAPI?.onPreviewMinimal?.((minimal: boolean) => {
+      setIsMinimal(!!minimal);
+    });
+
     const handlePreviewText = window.electronAPI?.onPreviewText?.((incoming: string) => {
       clearLifecycleTimers();
       clearTimer(copiedTimerRef);
@@ -127,6 +134,9 @@ export default function TranscriptionPreviewOverlay() {
       setHasOverflow(false);
       setPhase(incoming?.trim?.() ? "live" : "listening");
       setIsVisible(true);
+      if (incoming?.trim?.()) {
+        setIsMinimal(false);
+      }
     });
 
     const handlePreviewAppend = window.electronAPI?.onPreviewAppend?.((chunk: string) => {
@@ -147,6 +157,7 @@ export default function TranscriptionPreviewOverlay() {
       if (phaseRef.current === "final") return;
 
       if (payload?.showCleanup) {
+        setIsMinimal(false);
         setPhase("cleanup");
       } else {
         showFinalResult(rawTextRef.current);
@@ -175,12 +186,14 @@ export default function TranscriptionPreviewOverlay() {
         setCopied(false);
         setHasOverflow(false);
         setPhase("listening");
+        setIsMinimal(false);
       }, HIDE_ANIMATION_MS);
     });
 
     return () => {
       clearLifecycleTimers();
       clearTimer(copiedTimerRef);
+      handlePreviewMinimal?.();
       handlePreviewText?.();
       handlePreviewAppend?.();
       handlePreviewHold?.();
@@ -227,6 +240,40 @@ export default function TranscriptionPreviewOverlay() {
       : phase === "cleanup"
         ? t("transcriptionPreview.polishing", { defaultValue: "Polishing..." })
         : t("transcriptionPreview.listening", { defaultValue: "Listening..." });
+
+  if (isMinimal && phase === "listening" && !rawText) {
+    return (
+      <div className="meeting-notification-window flex h-full w-full items-end justify-center bg-transparent p-1">
+        <div
+          ref={shellRef}
+          className={[
+            "flex items-center gap-2 rounded-full border border-primary/15 bg-card/75 px-3.5 py-2",
+            "backdrop-blur-md shadow-[0_4px_16px_rgba(0,0,0,0.12)]",
+            "dark:bg-surface-2/80 dark:border-primary/20",
+            "transition-all duration-200 ease-out",
+            isVisible ? "translate-y-0 opacity-90" : "translate-y-2 opacity-0",
+          ].join(" ")}
+        >
+          <div className="flex items-end gap-[3px] h-3.5">
+            {[6, 11, 8, 10, 7].map((h, i) => (
+              <span
+                key={i}
+                className="w-[2px] rounded-full bg-primary/50"
+                style={{
+                  height: h,
+                  animation: "preview-bars 0.85s ease-in-out infinite",
+                  animationDelay: `${i * 0.1}s`,
+                }}
+              />
+            ))}
+          </div>
+          <span className="text-[10px] font-medium tracking-wide text-muted-foreground/55 uppercase">
+            {statusLabel}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="meeting-notification-window h-full w-full bg-transparent p-2">

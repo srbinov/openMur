@@ -61,6 +61,31 @@ class WhisperManager {
     return path.join(this.getModelsDir(), config.fileName);
   }
 
+  /** First downloaded model from preferred order (requested name first). */
+  resolveAvailableModel(requestedModel) {
+    const candidates = [
+      requestedModel,
+      "base",
+      "tiny",
+      "small",
+      "turbo",
+      "medium",
+      "large",
+    ].filter(Boolean);
+    const seen = new Set();
+    for (const name of candidates) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      try {
+        const modelPath = this.getModelPath(name);
+        if (fs.existsSync(modelPath)) return name;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
   getVadModelPath() {
     if (this.cachedVadModelPath !== undefined) return this.cachedVadModelPath;
 
@@ -189,7 +214,7 @@ class WhisperManager {
       }
     }
 
-    debugLogger.info("OpenWhispr dependency check", status);
+    debugLogger.info("openMur dependency check", status);
 
     // Log a summary for easy scanning
     const serverStatus = status.whisperServer.available
@@ -268,16 +293,23 @@ class WhisperManager {
       );
     }
 
-    const model = options.model || "base";
+    const requestedModel = options.model || "base";
+    const model = this.resolveAvailableModel(requestedModel);
+    if (!model) {
+      throw new Error(
+        `No Whisper model downloaded (requested "${requestedModel}"). Please download one from Settings.`
+      );
+    }
+    if (model !== requestedModel) {
+      debugLogger.info("Using fallback Whisper model", {
+        requested: requestedModel,
+        resolved: model,
+      });
+    }
     const language = options.language || null;
     const initialPrompt = options.initialPrompt || null;
     const vadEnabled = options.vadEnabled === true;
     const vadConfig = options.vadConfig || null;
-    const modelPath = this.getModelPath(model);
-
-    if (!fs.existsSync(modelPath)) {
-      throw new Error(`Whisper model "${model}" not downloaded. Please download it from Settings.`);
-    }
 
     return await this.transcribeViaServer(audioBlob, model, language, initialPrompt, {
       vadEnabled,

@@ -4,7 +4,7 @@
       "sectionTitle": "語言",
       "sectionDescription": "分別設定介面語言和轉錄語言",
       "uiLabel": "介面語言",
-      "uiDescription": "選擇 OpenWhispr 介面使用的語言",
+      "uiDescription": "選擇 openMur 介面使用的語言",
       "transcriptionLabel": "轉錄語言",
       "transcriptionDescription": "選擇你說話的語言，以提高轉錄準確度"
     },
@@ -33,12 +33,12 @@
       "hide": "隱藏語音輸入面板"
     },
     "openControlPanel": "開啟控制面板",
-    "quit": "結束 OpenWhispr",
-    "tooltip": "OpenWhispr - 語音輸入"
+    "quit": "結束 openMur",
+    "tooltip": "openMur - 語音輸入"
   },
   "menu": {
-    "appLabel": "OpenWhispr",
-    "quit": "結束 OpenWhispr",
+    "appLabel": "openMur",
+    "quit": "結束 openMur",
     "speech": "語音",
     "settings": "設定...",
     "help": "說明",
@@ -57,8 +57,8 @@
       "message": "無法在瀏覽器中開啟連結：\n{{url}}\n\n錯誤：{{error}}"
     },
     "loadFailure": {
-      "title": "OpenWhispr 載入失敗",
-      "message": "OpenWhispr 無法載入介面。",
+      "title": "openMur 載入失敗",
+      "message": "openMur 無法載入介面。",
       "detail": {
         "window": "視窗：{{windowName}}",
         "error": "錯誤 {{errorCode}}：{{errorDescription}}",
@@ -69,17 +69,17 @@
   },
   "startup": {
     "error": {
-      "title": "OpenWhispr 啟動錯誤",
+      "title": "openMur 啟動錯誤",
       "message": "應用程式啟動失敗：\n\n{{error}}\n\n請回報此問題。"
     },
     "globeHotkey": {
       "title": "Globe 快捷鍵無法使用",
-      "message": "OpenWhispr 無法啟用 Globe 鍵快捷鍵。",
+      "message": "openMur 無法啟用 Globe 鍵快捷鍵。",
       "details": {
         "unknown": "啟動 Globe 監聽程式時發生未知錯誤。",
         "fallback": "Globe 鍵快捷鍵將維持停用狀態；現有的鍵盤快捷鍵仍可正常使用。",
         "devHint": "執行 `npm run compile:globe` 並重新建置應用程式以重新產生監聽程式。",
-        "reinstallHint": "請嘗試重新安裝 OpenWhispr，或聯絡客服。"
+        "reinstallHint": "請嘗試重新安裝 openMur，或聯絡客服。"
       }
     }
   },
@@ -102,9 +102,9 @@
     "systemAudio": "系統音訊設定在此平台上不可用。"
   },
   "titleBar": {
-    "quitTitle": "結束 OpenWhispr",
-    "quitConfirmTitle": "確定要結束 OpenWhispr？",
-    "quitConfirmDescription": "這將關閉 OpenWhispr 並停止背景程序。",
+    "quitTitle": "結束 openMur",
+    "quitConfirmTitle": "確定要結束 openMur？",
+    "quitConfirmDescription": "這將關閉 openMur 並停止背景程序。",
     "quit": "結束",
     "cancel": "取消"
   },
@@ -168,6 +168,11 @@
     "done": "Listo"
   },
   "onboarding": {
+    "welcome": {
+      "title": "Welcome to openMur",
+      "description": "Voice dictation powered by Whisper. Let's get you set up in just a few steps.",
+      "getStarted": "Get Started"
+    },
     "steps": {
       "welcome": "歡迎",
       "setup": "設定",
@@ -181,6 +186,9 @@
     "setup": {
       "title": "設定",
       "description": "選擇語言並授予權限",
+      "localFlowDescription": "語音在您的裝置上本地轉寫。Claude 會在貼上前潤飾文字。",
+      "anthropicKeyLabel": "Anthropic API 金鑰",
+      "anthropicKeyHelp": "僅用於修正轉寫 — 您的語音不會離開裝置。",
       "language": "語言"
     },
     "permissions": {
@@ -192,14 +200,14 @@
       "accessibilityTitle": "輔助使用",
       "accessibilityDescription": "允許將轉錄文字自動貼上到任何應用程式",
       "testAndGrant": "測試並授權",
-      "requiredForApp": "OpenWhispr 運作所需",
+      "requiredForApp": "openMur 運作所需",
       "microphoneRequired": "需要麥克風存取權限",
       "openSystemSettings": "打開系統設定",
       "systemAudioTitle": "系統音訊",
       "systemAudioDescription": "轉錄會議、通話、講座、播客和其他系統音訊。",
       "optional": "可選",
       "recommended": "建議",
-      "accessibilityTroubleshooting": "在系統設定 → 輔助使用中，將 OpenWhispr 的開關關閉再重新開啟。如果無效，請將 OpenWhispr 從清單中移除後重新加入。還是不行？請寄信至 support@openwhispr.com。"
+      "accessibilityTroubleshooting": "在系統設定 → 輔助使用中，將 openMur 的開關關閉再重新開啟。如果無效，請將 openMur 從清單中移除後重新加入。還是不行？請寄信至 support@openmur.com。"
     },
     "transcription": {
       "title": "轉錄設定",
@@ -216,10 +224,11 @@
       "test": "測試",
       "hotkeyToStartStop": "{{hotkey}} 開始/停止",
       "holdHotkey": "按住 {{hotkey}}",
+      "presetHotkeyNote": "已為您的系統預先設定 — 可隨時在設定中更改",
       "textareaPlaceholder": "點擊這裡，然後使用快捷鍵開始語音輸入..."
     },
     "connectivity": {
-      "title": "無法從此網路連線到 OpenWhispr Cloud",
+      "title": "無法從此網路連線到 openMur Cloud",
       "body": "{{cause}} 你可以切換到本機引擎，或繼續並稍後再試。",
       "useLocal": "使用本機引擎",
       "continue": "仍然繼續"
@@ -228,9 +237,9 @@
   "streaming": {
     "errors": {
       "cloudUnreachable": {
-        "title": "無法連線到 OpenWhispr Cloud",
+        "title": "無法連線到 openMur Cloud",
         "generic": "網路請求失敗，請檢查你的連線。",
-        "dnsBlocked": "DNS 無法解析 openwhispr.com — 廣告封鎖器或過濾器可能阻擋了它。",
+        "dnsBlocked": "DNS 無法解析 openmur.com — 廣告封鎖器或過濾器可能阻擋了它。",
         "refused": "連線被拒絕 — 可能是防火牆或 VPN。",
         "timeout": "網路逾時 — VPN、強制入口頁或連線不穩定。",
         "tls": "TLS 交握失敗 — 請檢查系統時鐘或企業 Proxy。",
@@ -245,7 +254,7 @@
       "problemTitle": "更新遇到問題",
       "problemDescription": "無法完成更新。請稍後再試。",
       "installTitle": "安裝更新",
-      "installDescription": "OpenWhispr 將重新啟動以套用更新。進行中的工作會自動儲存。",
+      "installDescription": "openMur 將重新啟動以套用更新。進行中的工作會自動儲存。",
       "couldNotInstallTitle": "無法安裝更新",
       "couldNotInstallDescription": "發生錯誤，請再試一次。",
       "couldNotDownloadTitle": "無法下載更新",
@@ -260,7 +269,7 @@
     },
     "accessibilityMissing": {
       "title": "需要輔助使用權限",
-      "description": "我們偵測到 OpenWhispr 需要輔助使用權限才能正常運作。請在下方啟用。"
+      "description": "我們偵測到 openMur 需要輔助使用權限才能正常運作。請在下方啟用。"
     },
     "billing": {
       "pastDueTitle": "我們無法處理你的付款",
@@ -315,8 +324,8 @@
       "rawTranscript": "原始轉錄"
     },
     "cloudMigration": {
-      "title": "歡迎使用 OpenWhispr Cloud",
-      "description": "我們已將轉錄切換至 OpenWhispr Cloud，提供更快、更準確的結果。你之前的設定已儲存，隨時可在設定中切換回來。",
+      "title": "歡迎使用 openMur Cloud",
+      "description": "我們已將轉錄切換至 openMur Cloud，提供更快、更準確的結果。你之前的設定已儲存，隨時可在設定中切換回來。",
       "viewSettings": "查看設定"
     },
     "aiCta": {
@@ -447,7 +456,7 @@
         "description": "錄音中未偵測到聲音。請再試一次。"
       },
       "errorDescriptions": {
-        "sessionExpired": "OpenWhispr Cloud 工作階段無法使用。請至「設定」重新登入。",
+        "sessionExpired": "openMur Cloud 工作階段無法使用。請至「設定」重新登入。",
         "offline": "你目前離線。雲端轉錄需要網際網路連線。",
         "dailyLimitReached": "已達今日的轉錄上限。請明天再試或升級你的方案。"
       }
@@ -522,7 +531,7 @@
       "micErrors": {
         "accessFailed": "麥克風存取失敗。請再試一次。",
         "noMicrophones": "未偵測到麥克風。請在 {{settingsPath}} 中連接或選擇麥克風。",
-        "permissionDenied": "權限被拒絕。請開啟 {{privacyPath}} 並允許 OpenWhispr。",
+        "permissionDenied": "權限被拒絕。請開啟 {{privacyPath}} 並允許 openMur。",
         "couldNotStart": "無法啟動所選的麥克風。請在 {{settingsPath}} 中選擇輸入裝置後重新測試。",
         "noActiveInput": "找不到有效的音訊輸入。請在 {{settingsPath}} 中選擇麥克風。",
         "unknown": "麥克風存取失敗：{{error}}。請選擇其他輸入裝置後再試。",
@@ -551,8 +560,8 @@
         "accessibilityNeeded": "請在系統設定中授予輔助使用權限，以啟用自動貼上功能。",
         "windowsReady": "Windows 不需要特殊權限即可自動貼上。一切就緒！",
         "linuxReadyWithMethod": "已使用 {{method}} 啟用自動貼上。一切就緒！",
-        "waylandClipboardMode": "此 Wayland 工作階段不支援自動貼上。OpenWhispr 會將文字複製到剪貼簿，你可以使用 Ctrl+V 貼上。",
-        "optionalPasteTool": "如需自動貼上，請安裝 {{tool}}：\n\n{{installCmd}}{{waylandNote}}\n\n沒有安裝也可以使用 OpenWhispr，文字會複製到剪貼簿，你可以使用 Ctrl+V 貼上。"
+        "waylandClipboardMode": "此 Wayland 工作階段不支援自動貼上。openMur 會將文字複製到剪貼簿，你可以使用 Ctrl+V 貼上。",
+        "optionalPasteTool": "如需自動貼上，請安裝 {{tool}}：\n\n{{installCmd}}{{waylandNote}}\n\n沒有安裝也可以使用 openMur，文字會複製到剪貼簿，你可以使用 Ctrl+V 貼上。"
       },
       "alerts": {
         "accessibilityNeeded": "需要輔助使用權限！請在系統設定中授權。"
@@ -565,7 +574,7 @@
         "defaultPasteTool": "xdotool",
         "xdotoolXwayland": "xdotool（XWayland 應用程式）"
       },
-      "accessibilityTestText": "OpenWhispr 輔助使用測試",
+      "accessibilityTestText": "openMur 輔助使用測試",
       "warning": {
         "messages": {
           "macos": "請檢查聲音設定以選擇輸入裝置",
@@ -635,10 +644,10 @@
       "continueWithApple": "使用 Apple 繼續",
       "continueWithGoogle": "使用 Google 繼續",
       "continueWithMicrosoft": "使用 Microsoft 繼續",
-      "protocolUnavailable": "無法透過瀏覽器登入 — 請在系統的「預設應用程式」設定中重新註冊 openwhispr:// 協定。"
+      "protocolUnavailable": "無法透過瀏覽器登入 — 請在系統的「預設應用程式」設定中重新註冊 openmur:// 協定。"
     },
     "welcomeSubtitle": "隨時隨地用語音輸入文字",
-    "welcomeTitle": "歡迎使用 OpenWhispr",
+    "welcomeTitle": "歡迎使用 openMur",
     "sessionExpired": "工作階段已過期，請重新登入。"
   },
   "cleanupPrompt": "文字整理",
@@ -799,6 +808,7 @@
     "hotkeyLabel": "快捷鍵",
     "keyHint": "+ 按鍵",
     "listening": "聆聽中...",
+    "modifierOnlyHint": "放開以確認",
     "pressAnyKey": "按下任意按鍵或 Ctrl+Shift+K",
     "pressAnyKeyMac": "按下任意按鍵或 ⌘⇧K",
     "recording": "記錄中",
@@ -844,10 +854,10 @@
     "recheckChecking": "檢查中...",
     "title": "自動貼上",
     "usingMethodPrefix": "使用",
-    "waylandClipboardDescription": "此 Wayland 工作階段不支援自動貼上。OpenWhispr 會將文字複製到剪貼簿，你可以使用 Ctrl+V 手動貼上。",
+    "waylandClipboardDescription": "此 Wayland 工作階段不支援自動貼上。openMur 會將文字複製到剪貼簿，你可以使用 Ctrl+V 手動貼上。",
     "waylandClipboardTitle": "Wayland 剪貼簿模式",
     "windowsReady": "Windows 內建支援自動貼上。不需要額外設定！",
-    "withoutToolPrefix": "若未安裝此工具，OpenWhispr 會將文字複製到剪貼簿。你可以使用 Ctrl+V 手動貼上。",
+    "withoutToolPrefix": "若未安裝此工具，openMur 會將文字複製到剪貼簿。你可以使用 Ctrl+V 手動貼上。",
     "xwaylandAppsOnly": "自動貼上僅適用於 XWayland 應用程式"
   },
   "promptStudio": {
@@ -857,7 +867,7 @@
       "reset": "重設",
       "save": "儲存"
     },
-    "defaultTestInput": "嘿 Whispr，今天天氣怎麼樣？",
+    "defaultTestInput": "嘿 Mur，今天天氣怎麼樣？",
     "dialogs": {
       "reset": {
         "description": "提示詞已重設為預設值。",
@@ -897,7 +907,7 @@
       "none": "無",
       "outputLabel": "輸出",
       "processing": "處理中...",
-      "openwhisprCloud": "OpenWhispr Cloud",
+      "openmurCloud": "openMur Cloud",
       "providerLabel": "供應商",
       "run": "執行測試",
       "customEndpoint": "自訂端點"
@@ -1031,7 +1041,7 @@
           "price": "$0",
           "period": "永久",
           "features": [
-            "## OpenWhispr Cloud",
+            "## openMur Cloud",
             "每週 2,000 字轉錄",
             "每月 5 小時會議錄製",
             "## 永久免費",
@@ -1072,7 +1082,12 @@
           "annualEquivalent": "$16.67",
           "includesPrefix": "所有 Pro 功能 +",
           "badge": "最熱門",
-          "features": ["無限會議錄製", "代理模式", "與您的資料對話", "優先支援"],
+          "features": [
+            "無限會議錄製",
+            "代理模式",
+            "與您的資料對話",
+            "優先支援"
+          ],
           "cta": "開始使用",
           "switchToAnnual": "切換為年付"
         },
@@ -1120,7 +1135,7 @@
         "button": "刪除我的帳戶",
         "deleting": "正在刪除...",
         "title": "刪除您的帳戶？",
-        "description": "這將永久刪除您的 OpenWhispr 帳戶、所有雲端同步筆記和所有本地資料，包括轉錄、音訊錄製、下載的模型、行事曆連線和設定。此操作無法復原。",
+        "description": "這將永久刪除您的 openMur 帳戶、所有雲端同步筆記和所有本地資料，包括轉錄、音訊錄製、下載的模型、行事曆連線和設定。此操作無法復原。",
         "confirmText": "刪除所有內容",
         "successTitle": "帳戶已刪除",
         "successDescription": "您的帳戶和所有資料已被刪除。應用程式將立即重新載入。",
@@ -1156,24 +1171,24 @@
       "enableTextCleanup": "啟用文字整理",
       "enableTextCleanupDescription": "AI 移除語助詞，修正文法和標點",
       "modes": {
-        "openwhispr": "OpenWhispr Cloud",
+        "openmur": "openMur Cloud",
         "providers": "雲端供應商",
         "local": "本機",
         "selfHosted": "自架主機",
-        "openwhisprDesc": "準確可靠，無需設定。",
+        "openmurDesc": "準確可靠，無需設定。",
         "providersDesc": "使用你自己的 API Key。",
         "localDesc": "裝置端模型，完全私密。",
         "selfHostedDesc": "你的伺服器，在你的網路上。",
         "enterprise": "企業級",
         "enterpriseDesc": "使用你組織的雲端帳號（AWS、Azure、GCP）。"
       },
-      "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "準確可靠，無需設定。",
+      "openmurCloud": "openMur Cloud",
+      "openmurCloudDescription": "準確可靠，無需設定。",
       "title": "AI 文字增強",
       "toasts": {
         "switchedCloud": {
-          "description": "文字增強將使用 OpenWhispr 雲端服務。",
-          "title": "已切換至 OpenWhispr Cloud"
+          "description": "文字增強將使用 openMur 雲端服務。",
+          "title": "已切換至 openMur Cloud"
         },
         "switchedCustom": {
           "description": "設定你自己的供應商和 API Key。",
@@ -1252,7 +1267,7 @@
       "appearance": {
         "auto": "自動",
         "dark": "深色",
-        "description": "控制 OpenWhispr 的外觀",
+        "description": "控制 openMur 的外觀",
         "light": "淺色",
         "theme": "主題",
         "themeDescription": "選擇淺色、深色或跟隨系統",
@@ -1301,7 +1316,7 @@
       },
       "notifications": {
         "title": "通知",
-        "description": "設定 OpenWhispr 可以顯示哪些通知",
+        "description": "設定 openMur 可以顯示哪些通知",
         "disableAll": "停用所有通知",
         "disableAllDescription": "靜音除錯誤訊息外的所有內容",
         "meetingDetection": "會議偵測",
@@ -1320,9 +1335,9 @@
       },
       "startup": {
         "launchAtLogin": "登入時啟動",
-        "launchAtLoginDescription": "登入時自動啟動 OpenWhispr",
+        "launchAtLoginDescription": "登入時自動啟動 openMur",
         "title": "啟動",
-        "description": "控制 OpenWhispr 啟動時的行為",
+        "description": "控制 openMur 啟動時的行為",
         "startMinimized": "啟動時最小化",
         "startMinimizedDescription": "啟動時不顯示控制面板視窗"
       },
@@ -1368,7 +1383,7 @@
           "group": {
             "step1Title": "將你的使用者新增至 input 群組",
             "step2Title": "登出並重新登入",
-            "step2Desc": "群組變更僅在新工作階段後生效。從桌面登出，重新登入，然後重新開啟 OpenWhispr。"
+            "step2Desc": "群組變更僅在新工作階段後生效。從桌面登出，重新登入，然後重新開啟 openMur。"
           },
           "service": {
             "step1Title": "建立服務目錄",
@@ -1416,7 +1431,7 @@
           },
           "installUpdate": {
             "confirmText": "安裝並重新啟動",
-            "description": "OpenWhispr 將重新啟動以套用更新。",
+            "description": "openMur 將重新啟動以套用更新。",
             "title": "安裝更新"
           },
           "noUpdates": {
@@ -1447,13 +1462,13 @@
     "permissions": {
       "accessibilityDescription": "轉錄後自動貼上文字所需的權限",
       "accessibilityTitle": "輔助使用",
-      "description": "測試和管理 OpenWhispr 正常運作所需的系統權限",
+      "description": "測試和管理 openMur 正常運作所需的系統權限",
       "microphoneDescription": "錄製您的聲音用於聽寫和轉錄",
       "microphoneTitle": "麥克風",
       "resetAccessibility": {
-        "description": "這將從輔助使用權限中移除 OpenWhispr。你需要在「系統設定 > 隱私權與安全性 > 輔助使用」中重新授權。",
+        "description": "這將從輔助使用權限中移除 openMur。你需要在「系統設定 > 隱私權與安全性 > 輔助使用」中重新授權。",
         "label": "重設輔助使用權限",
-        "rowDescription": "重新安裝或重新建置應用程式後，透過在系統設定中移除並重新加入 OpenWhispr 來修復問題",
+        "rowDescription": "重新安裝或重新建置應用程式後，透過在系統設定中移除並重新加入 openMur 來修復問題",
         "title": "重設輔助使用權限"
       },
       "optional": "可選",
@@ -1474,7 +1489,7 @@
       "description": "控制哪些資料會離開你的裝置。預設全部關閉。",
       "title": "隱私權",
       "usageAnalytics": "使用分析",
-      "usageAnalyticsDescription": "分享匿名的效能指標，協助我們改善 OpenWhispr。我們絕不會傳送轉錄內容——只有計時和錯誤資料。",
+      "usageAnalyticsDescription": "分享匿名的效能指標，協助我們改善 openMur。我們絕不會傳送轉錄內容——只有計時和錯誤資料。",
       "dataRetention": "資料保留",
       "dataRetentionDescription": "將轉錄和音訊本地儲存至歷史記錄。停用後，轉錄內容會被貼上但不會被儲存。",
       "hoursAgo": "{{count}}小時前",
@@ -1522,24 +1537,24 @@
     "transcription": {
       "customSetup": "自訂設定",
       "customSetupDescription": "使用你自己的供應商和 API Key。",
-      "description": "選擇 OpenWhispr 轉錄語音的方式",
+      "description": "選擇 openMur 轉錄語音的方式",
       "modes": {
-        "openwhispr": "OpenWhispr Cloud",
+        "openmur": "openMur Cloud",
         "providers": "雲端供應商",
         "local": "本機",
         "selfHosted": "自架主機",
-        "openwhisprDesc": "準確可靠，無需設定。",
+        "openmurDesc": "準確可靠，無需設定。",
         "providersDesc": "使用你自己的 API Key。",
         "localDesc": "裝置端模型，完全私密。",
         "selfHostedDesc": "你的伺服器，在你的網路上。"
       },
-      "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "準確可靠，無需設定。",
+      "openmurCloud": "openMur Cloud",
+      "openmurCloudDescription": "準確可靠，無需設定。",
       "title": "語音轉文字",
       "toasts": {
         "switchedCloud": {
-          "description": "轉錄將使用 OpenWhispr 雲端服務。",
-          "title": "已切換至 OpenWhispr Cloud"
+          "description": "轉錄將使用 openMur 雲端服務。",
+          "title": "已切換至 openMur Cloud"
         },
         "switchedCustom": {
           "description": "設定你自己的供應商和 API Key。",
@@ -1863,7 +1878,7 @@
     },
     "tryAgain": "重試",
     "card": {
-      "brand": "OpenWhispr",
+      "brand": "openMur",
       "signalId": "Signal ID",
       "audioSignature": "您的音訊簽名",
       "stop": "停止",
@@ -1960,7 +1975,7 @@
       "setupTitle": "設定轉錄",
       "setupDescription": "選擇音訊轉錄方式。此設定同樣適用於即時聽寫。",
       "continue": "繼續",
-      "openwhisprCloud": "OpenWhispr Cloud",
+      "openmurCloud": "openMur Cloud",
       "custom": "自訂",
       "selectFolder": "選擇資料夾",
       "transcriptionFailed": "轉錄失敗",
@@ -1972,15 +1987,15 @@
       "fileTooLarge": "此檔案超過 500 MB 的大小限制。",
       "largeFileNote": "大型檔案將被分割並平行轉錄。",
       "chunkProgress": "正在轉錄第 {{completed}} 部分，共 {{total}} 部分...",
-      "paidPlanRequired": "超過 25 MB 的檔案需要付費方案才能使用雲端轉錄。大型檔案透過 OpenWhispr Cloud 處理，確保可靠、高品質的結果。",
+      "paidPlanRequired": "超過 25 MB 的檔案需要付費方案才能使用雲端轉錄。大型檔案透過 openMur Cloud 處理，確保可靠、高品質的結果。",
       "byokTooLarge": "第三方 API 金鑰僅支援 25 MB 以內的檔案。",
-      "byokTooLargeDetail": "超過 25 MB 的檔案由 OpenWhispr Cloud 負責分割、平行處理和重組——無需依賴第三方服務限制，即可獲得可靠的結果。",
-      "byokTooLargeNeedsAccount": "建立帳戶並升級至付費方案，即可使用 OpenWhispr Cloud 轉錄更大的檔案。",
-      "byokTooLargeNeedsUpgrade": "升級至付費方案，即可使用 OpenWhispr Cloud 轉錄更大的檔案。",
-      "switchToCloudForLargeFiles": "切換到 OpenWhispr Cloud 來轉錄此檔案。",
+      "byokTooLargeDetail": "超過 25 MB 的檔案由 openMur Cloud 負責分割、平行處理和重組——無需依賴第三方服務限制，即可獲得可靠的結果。",
+      "byokTooLargeNeedsAccount": "建立帳戶並升級至付費方案，即可使用 openMur Cloud 轉錄更大的檔案。",
+      "byokTooLargeNeedsUpgrade": "升級至付費方案，即可使用 openMur Cloud 轉錄更大的檔案。",
+      "switchToCloudForLargeFiles": "切換到 openMur Cloud 來轉錄此檔案。",
       "createAccount": "建立帳戶",
       "upgrade": "升級",
-      "switchToCloud": "OpenWhispr Cloud"
+      "switchToCloud": "openMur Cloud"
     },
     "meeting": {
       "title": "會議筆記",
@@ -2202,7 +2217,7 @@
     "submitBug": "提交 Bug"
   },
   "postMigration": {
-    "title": "歡迎回到 OpenWhispr",
+    "title": "歡迎回到 openMur",
     "description": "您的筆記與設定已從先前版本保留下來。不過 macOS 會將此視為一款全新的應用程式，因此需要您重新授予部分權限。",
     "done": "完成",
     "remindLater": "稍後提醒我"
@@ -2244,7 +2259,7 @@
       "undo": "復原",
       "accessibilityMissing": {
         "title": "需要輔助使用權限",
-        "description": "OpenWhispr 需要輔助使用權限來偵測快捷鍵和貼上文字。請在控制面板中啟用。"
+        "description": "openMur 需要輔助使用權限來偵測快捷鍵和貼上文字。請在控制面板中啟用。"
       }
     },
     "mic": {
@@ -2267,8 +2282,8 @@
     "enabled": "Enable voice agent",
     "enabledDescription": "Dictate instructions to your agent. Activate by saying \"{{agentName}}\". Configurable below.",
     "modes": {
-      "openwhispr": "OpenWhispr Cloud",
-      "openwhisprDesc": "Use the OpenWhispr-managed agent — no API key needed.",
+      "openmur": "openMur Cloud",
+      "openmurDesc": "Use the openMur-managed agent — no API key needed.",
       "providers": "Bring your own key",
       "providersDesc": "Connect to OpenAI, Anthropic, Gemini, or Groq with your own API key.",
       "local": "Local",
@@ -2294,19 +2309,19 @@
       "systemPromptDescription": "助手的自訂指令",
       "systemPromptPlaceholder": "輸入自訂系統提示詞...",
       "modes": {
-        "openwhispr": "OpenWhispr Cloud",
+        "openmur": "openMur Cloud",
         "providers": "雲端供應商",
         "local": "本機",
         "selfHosted": "自架主機",
-        "openwhisprDesc": "準確可靠，無需設定。",
+        "openmurDesc": "準確可靠，無需設定。",
         "providersDesc": "使用自己的 API 金鑰。",
         "localDesc": "裝置端模型，完全私密。",
         "selfHostedDesc": "你自己網路上的伺服器。",
         "enterprise": "企業級",
         "enterpriseDesc": "使用你組織的雲端帳號（AWS、Azure、GCP）。"
       },
-      "openwhisprCloud": "OpenWhispr Cloud",
-      "openwhisprCloudDescription": "準確可靠，無需設定。",
+      "openmurCloud": "openMur Cloud",
+      "openmurCloudDescription": "準確可靠，無需設定。",
       "customSetup": "自訂配置 (BYOK)",
       "customSetupDescription": "使用自己的 API 金鑰並選擇偏好的模型"
     },
@@ -2374,7 +2389,7 @@
       "disconnectConfirm": "中斷 {{email}} 的連接？",
       "disconnectDescription": "將不再從此日曆記錄會議筆記。",
       "systemAudioRequired": "需要系統音訊權限",
-      "systemAudioDescription": "要轉錄會議，OpenWhispr 需要系統音訊權限來錄製其他參與者的音訊。我們絕不會錄製您的螢幕。您將被引導至系統設定以啟用此權限。",
+      "systemAudioDescription": "要轉錄會議，openMur 需要系統音訊權限來錄製其他參與者的音訊。我們絕不會錄製您的螢幕。您將被引導至系統設定以啟用此權限。",
       "openSettings": "打開系統設定"
     },
     "sections": {
@@ -2394,13 +2409,13 @@
     "mcp": {
       "title": "將筆記帶到你的 AI 工具中",
       "description": "在 Claude、ChatGPT 和 Cursor 中與你的筆記一起聊天、搜尋和工作。",
-      "step1": "在你的 AI 工具中，使用公開 URL 新增 OpenWhispr MCP",
+      "step1": "在你的 AI 工具中，使用公開 URL 新增 openMur MCP",
       "step2": "在上方建立具有所需權限的 API 金鑰。",
       "step3": "將金鑰貼上為 Authorization 標頭以連線。",
       "learnMore": "瞭解更多",
       "viewPlans": "查看方案",
       "copyUrl": "複製 MCP URL",
-      "proRequired": "升級到付費方案，以將 OpenWhispr 連接到 Claude、ChatGPT 和 Cursor。",
+      "proRequired": "升級到付費方案，以將 openMur 連接到 Claude、ChatGPT 和 Cursor。",
       "copied": "已複製"
     },
     "cli": {
@@ -2414,7 +2429,7 @@
       "local": {
         "label": "本機",
         "freeBadge": "免費",
-        "description": "直接讀取你的本機筆記。無需登入或 API 金鑰 — OpenWhispr 執行時即可使用。"
+        "description": "直接讀取你的本機筆記。無需登入或 API 金鑰 — openMur 執行時即可使用。"
       },
       "cloud": {
         "label": "雲端",
@@ -2434,8 +2449,8 @@
       "upgrade": "升級"
     },
     "notABot": {
-      "title": "OpenWhispr 是會議錄製工具，不是機器人",
-      "description": "OpenWhispr 直接從您的系統擷取音訊 — 它不會以參與者身分加入您的會議。只需連接日曆，正常記錄筆記即可。"
+      "title": "openMur 是會議錄製工具，不是機器人",
+      "description": "openMur 直接從您的系統擷取音訊 — 它不會以參與者身分加入您的會議。只需連接日曆，正常記錄筆記即可。"
     }
   },
   "calendar": {
@@ -2483,7 +2498,7 @@
     "signInDescription": "建立帳戶或登入以錄製和轉錄會議。",
     "connectCalendar": "連接您的日曆",
     "connectCalendarDescription": "關聯 Google 日曆以查看即將到來的會議並自動記錄筆記。",
-    "notABot": "OpenWhispr 透過系統音訊錄製 — 它不會以機器人身分加入您的會議。",
+    "notABot": "openMur 透過系統音訊錄製 — 它不會以機器人身分加入您的會議。",
     "connectCalendarButton": "連接日曆"
   },
   "notesView": {
@@ -2558,18 +2573,18 @@
     }
   },
   "updateNotification": {
-    "title": "OpenWhispr 有可用更新",
+    "title": "openMur 有可用更新",
     "body": "版本 {{version}} 已可下載",
     "cta": "立即更新"
   },
   "permissionsGate": {
     "title": "需要權限",
-    "description": "OpenWhispr 需要一些權限才能在此電腦上正常運作。",
+    "description": "openMur 需要一些權限才能在此電腦上正常運作。",
     "continue": "繼續"
   },
   "apiKeysSection": {
     "title": "API 金鑰",
-    "description": "建立金鑰以程式化方式存取 OpenWhispr API。",
+    "description": "建立金鑰以程式化方式存取 openMur API。",
     "docsLink": "API 文件",
     "empty": "尚無 API 金鑰",
     "createButton": "建立 API 金鑰",
@@ -2688,5 +2703,52 @@
       "successDescription": "Bienvenido a {{name}}.",
       "errorTitle": "No se pudo aceptar la invitación"
     }
+  },
+  "localSetup": {
+    "modalTitle": "Settings",
+    "sidebarGroup": "Setup",
+    "tabListLabel": "Settings sections",
+    "tabs": {
+      "general": "General",
+      "generalDescription": "Language, microphone, and app preferences",
+      "models": "AI & models",
+      "modelsDescription": "Speech model and text cleanup",
+      "hotkeys": "Hotkey",
+      "hotkeysDescription": "Dictation shortcut and activation mode"
+    },
+    "general": {
+      "title": "General",
+      "description": "Choose your languages and how dictation behaves.",
+      "retentionHint": "Transcriptions are removed automatically after {{minutes}} minutes for privacy."
+    },
+    "models": {
+      "title": "AI & models",
+      "description": "Run speech-to-text locally, then optionally polish text with your own API keys.",
+      "whisperTitle": "Speech recognition",
+      "whisperDescription": "Runs fully on your device with whisper.cpp.",
+      "cleanupTitle": "Text cleanup (optional)",
+      "cleanupDescription": "Polish dictation with OpenAI, Anthropic, or Gemini. Paste your API key, save, then pick a model."
+    },
+    "hotkeys": {
+      "title": "Hotkey",
+      "description": "Pick any shortcut that works for you.",
+      "tip": "Press {{hotkey}} anywhere to start and stop dictation."
+    },
+    "home": {
+      "welcome": "Welcome",
+      "subtitle": "Press {{hotkey}} to dictate. Set up language, models, and your hotkey below."
+    }
+  },
+  "dictationPill": {
+    "ready": "Ready",
+    "listening": "Listening",
+    "transcribing": "Transcribing…",
+    "pasting": "Pasting…",
+    "done": "Done",
+    "speakNow": "Speak now…",
+    "processingHint": "Turning speech into text",
+    "pastingHint": "Inserting at your cursor",
+    "doneHint": "Inserted into your app",
+    "idleHint": "Press your hotkey to start"
   }
 }

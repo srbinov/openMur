@@ -3,10 +3,10 @@ import { withSessionRefresh } from "../../../lib/auth";
 import { getSettings } from "../../../stores/settingsStore";
 import logger from "../../../utils/logger";
 
-export const openwhisprProvider: InferenceProvider = {
-  id: "openwhispr",
+export const openmurProvider: InferenceProvider = {
+  id: "openmur",
   async call({ text, model, agentName, config, ctx }) {
-    logger.logReasoning("OPENWHISPR_START", { model, agentName });
+    logger.logReasoning("OPENMUR_START", { model, agentName });
 
     const customPrompt = config.systemPrompt
       ? undefined
@@ -24,7 +24,7 @@ export const openwhisprProvider: InferenceProvider = {
 
       if (!res?.success) {
         const err: Error & { code?: string } = new Error(
-          res?.error || "OpenWhispr cloud reasoning failed"
+          res?.error || "openMur cloud reasoning failed"
         );
         err.code = res?.code;
         throw err;
@@ -33,7 +33,7 @@ export const openwhisprProvider: InferenceProvider = {
       return res;
     });
 
-    logger.logReasoning("OPENWHISPR_SUCCESS", {
+    logger.logReasoning("OPENMUR_SUCCESS", {
       model: result.model,
       provider: result.provider,
       resultLength: result.text.length,

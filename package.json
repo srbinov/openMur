@@ -1,7 +1,8 @@
 {
-  "name": "open-whispr",
+  "name": "open-mur",
   "version": "1.7.2",
-  "description": "A desktop dictation application using whisper.cpp for speech-to-text transcription",
+  "description": "openMur — local dictation (npm run dev is the product; packaged via electron-builder.local.json)",
+  "desktopName": "open-mur.desktop",
   "main": "main.js",
   "private": true,
   "engines": {
@@ -20,11 +21,14 @@
     "compile:mic-listener": "node scripts/build-macos-mic-listener.js",
     "compile:audio-tap": "node scripts/build-macos-audio-tap.js",
     "compile:native": "npm run compile:globe && npm run compile:fast-paste && npm run compile:winkeys && npm run compile:linuxkeys && npm run compile:winpaste && npm run compile:linux-paste && npm run compile:linux-system-audio && npm run compile:text-monitor && npm run compile:media-remote && npm run compile:mic-listener && npm run compile:audio-tap",
-    "prestart": "npm run compile:native && npm run download:meeting-aec-helper && npm run download:qdrant && npm run download:embedding-model && npm run download:whisper-vad-model",
+    "sync:icons": "node scripts/sync-openmur-icons.js",
+    "check:secrets": "node scripts/check-no-secrets.js",
+    "prepare:local": "node scripts/prepare-local-dev.js",
+    "prepare:local:pack": "node scripts/prepare-local-pack.js",
+    "prestart": "npm run prepare:local",
     "start": "electron .",
-    "predev": "npm run compile:native && npm run download:meeting-aec-helper && npm run download:qdrant && npm run download:embedding-model && npm run download:whisper-vad-model",
+    "predev": "npm run prepare:local",
     "dev": "concurrently -k -r \"npm:dev:renderer\" \"npm:dev:main\"",
-    "predev:main": "npm run compile:native && npm run download:meeting-aec-helper && npm run download:qdrant && npm run download:embedding-model && npm run download:whisper-vad-model",
     "dev:main": "cross-env NODE_ENV=development node scripts/run-electron.js --dev",
     "dev:renderer": "cd src && vite",
     "prebuild": "npm run compile:native && npm run download:whisper-cpp && npm run download:llama-server && npm run download:sherpa-onnx && npm run download:qdrant && npm run download:meeting-aec-helper && npm run download:whisper-vad-model && npm run download:embedding-model -- --for-build && npm run download:diarization-models -- --output-dir resources/bin/diarization-models",
@@ -46,6 +50,12 @@
     "build:linux:tar": "npm run build:renderer && electron-builder --linux tar.gz",
     "prepack": "npm run compile:native && npm run download:whisper-cpp && npm run download:llama-server && npm run download:sherpa-onnx && npm run download:qdrant && npm run download:meeting-aec-helper && npm run download:whisper-vad-model && npm run download:diarization-models -- --output-dir resources/bin/diarization-models",
     "pack": "npm run build:renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
+    "prepack:local": "npm run prepare:local:pack",
+    "prebuild:local:appimage": "npm run prepare:local:pack",
+    "prebuild:local:deb": "npm run prepare:local:pack",
+    "pack:local": "npm run build:renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir --config electron-builder.local.json",
+    "build:local:appimage": "npm run build:renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --linux AppImage --config electron-builder.local.json",
+    "build:local:deb": "npm run build:renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --linux deb --config electron-builder.local.json",
     "predist": "npm run compile:native && npm run download:whisper-cpp && npm run download:llama-server && npm run download:sherpa-onnx && npm run download:qdrant && npm run download:meeting-aec-helper && npm run download:whisper-vad-model && npm run download:diarization-models -- --output-dir resources/bin/diarization-models",
     "dist": "npm run build:renderer && electron-builder",
     "download:whisper-cpp": "node scripts/download-whisper-cpp.js --current",
@@ -84,8 +94,8 @@
     "desktop-app"
   ],
   "author": {
-    "name": "OpenWhispr Team",
-    "email": "support@openwhispr.com"
+    "name": "openMur Team",
+    "email": "support@openmur.com"
   },
   "license": "MIT",
   "devDependencies": {
@@ -98,7 +108,7 @@
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.2.1",
     "cross-env": "^10.0.0",
-    "electron": "^41.2.0",
+    "electron": "^41.7.1",
     "electron-builder": "^26.4.0",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",

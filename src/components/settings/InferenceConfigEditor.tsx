@@ -62,9 +62,9 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
   const prefix = MODE_LABEL_PREFIX[scope];
   const modes: InferenceModeOption[] = [
     {
-      id: "openwhispr",
-      label: t(`${prefix}.openwhispr`),
-      description: t(`${prefix}.openwhisprDesc`),
+      id: "openmur",
+      label: t(`${prefix}.openmur`),
+      description: t(`${prefix}.openmurDesc`),
       icon: <Cloud className="w-4 h-4" />,
       disabled: !isSignedIn,
       badge: !isSignedIn ? t("common.freeAccountRequired") : undefined,
@@ -105,7 +105,7 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
 
   const handleModeSelect = useCallback(
     (mode: InferenceMode) => {
-      if (mode === "openwhispr" && !isSignedIn) {
+      if (mode === "openmur" && !isSignedIn) {
         startCloudOnboarding();
         return;
       }
@@ -113,7 +113,7 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
 
       const patch: Parameters<typeof setResolvedLLMConfig>[1] = {
         mode,
-        cloudMode: mode === "openwhispr" ? "openwhispr" : "byok",
+        cloudMode: mode === "openmur" ? "openmur" : "byok",
       };
       if (!isProviderValidForMode(config.provider, mode)) {
         patch.provider = "";
@@ -121,7 +121,7 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
       }
       setResolvedLLMConfig(scope, patch);
 
-      if (mode === "openwhispr" || mode === "self-hosted" || mode === "enterprise") {
+      if (mode === "openmur" || mode === "self-hosted" || mode === "enterprise") {
         window.electronAPI?.llamaServerStop?.();
       }
 

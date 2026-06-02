@@ -127,6 +127,7 @@ export default function SidebarModal<T extends string>({
                   className={`relative flex-1 pb-2 overflow-y-auto ${
                     isCompact ? "px-1.5 pt-4" : "px-2 pt-4"
                   }`}
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                 >
                   {groupedItems.map((group, groupIndex) => (
                     <div key={groupIndex} className={groupIndex > 0 ? "mt-3" : ""}>
@@ -215,7 +216,10 @@ export default function SidebarModal<T extends string>({
               </div>
 
               {/* Main Content */}
-              <div className="flex-1 overflow-y-auto bg-background dark:bg-surface-1">
+              <div
+                className="flex-1 overflow-y-auto bg-background dark:bg-surface-1"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              >
                 <SettingsLayoutProvider value={{ isCompact }}>
                   <div className={isCompact ? "p-4" : "p-6"}>{children}</div>
                 </SettingsLayoutProvider>

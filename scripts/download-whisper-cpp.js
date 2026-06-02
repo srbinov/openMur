@@ -11,7 +11,7 @@ const {
   cleanupFiles,
 } = require("./lib/download-utils");
 
-const WHISPER_CPP_REPO = "OpenWhispr/whisper.cpp";
+const WHISPER_CPP_REPO = "openMur/whisper.cpp";
 
 // Version can be pinned via environment variable for reproducible builds
 const VERSION_OVERRIDE = process.env.WHISPER_CPP_VERSION || null;
@@ -112,6 +112,18 @@ async function downloadBinary(platformArch, config, release, isForce = false) {
 }
 
 async function main() {
+  fs.mkdirSync(BIN_DIR, { recursive: true });
+  const args = parseArgs();
+
+  if (args.isCurrent && BINARIES[args.platformArch]) {
+    const config = BINARIES[args.platformArch];
+    const outputPath = path.join(BIN_DIR, config.outputName);
+    if (fs.existsSync(outputPath) && !args.isForce) {
+      console.log(`  [server] ${args.platformArch}: Already exists (use --force to re-download)`);
+      return;
+    }
+  }
+
   if (VERSION_OVERRIDE) {
     console.log(`\n[whisper-server] Using pinned version: ${VERSION_OVERRIDE}`);
   } else {
@@ -127,10 +139,6 @@ async function main() {
   }
 
   console.log(`\nDownloading whisper-server binaries (${release.tag})...\n`);
-
-  fs.mkdirSync(BIN_DIR, { recursive: true });
-
-  const args = parseArgs();
 
   if (args.isCurrent) {
     if (!BINARIES[args.platformArch]) {

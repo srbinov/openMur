@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import WindowControls from "./WindowControls";
+import { cn } from "./lib/utils";
 import { Button } from "./ui/button";
 import { Power } from "lucide-react";
 import { ConfirmDialog } from "./ui/dialog";
@@ -51,7 +52,7 @@ export default function TitleBar({
   return (
     <div className={`bg-background border-b border-border select-none ${className}`}>
       <div
-        className="flex items-center justify-between h-12 px-4"
+        className="relative flex items-center justify-between h-12 px-4"
         style={{ WebkitAppRegion: "drag" }}
       >
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" }}>
@@ -79,11 +80,15 @@ export default function TitleBar({
           )}
         </div>
 
-        <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" }}>
+        <div
+          className={cn(
+            "flex items-center",
+            platform !== "darwin" ? "absolute top-2.5 right-3" : "gap-2"
+          )}
+          style={{ WebkitAppRegion: "no-drag" }}
+        >
           {platform !== "darwin" ? (
-            <>
-              <WindowControls />
-            </>
+            <WindowControls />
           ) : (
             <>
               {actions}

@@ -2,143 +2,17 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 import { formatHotkeyLabel, isGlobeLikeHotkey } from "../../utils/hotkeys";
+import {
+  MODIFIER_CODES,
+  activeModifierLabels,
+  buildModifierOnlyHotkey,
+  captureHotkeyFromKeyDown,
+  countModifiers,
+  modifierCodesFromPressedCodes,
+  modifiersFromPressedCodes,
+  updatePressedModifierCode,
+} from "../../utils/hotkeyCapture";
 import { getPlatform } from "../../utils/platform";
-
-const CODE_TO_KEY: Record<string, string> = {
-  Backquote: "`",
-  Digit1: "1",
-  Digit2: "2",
-  Digit3: "3",
-  Digit4: "4",
-  Digit5: "5",
-  Digit6: "6",
-  Digit7: "7",
-  Digit8: "8",
-  Digit9: "9",
-  Digit0: "0",
-  Minus: "-",
-  Equal: "=",
-  // QWERTY row
-  KeyQ: "Q",
-  KeyW: "W",
-  KeyE: "E",
-  KeyR: "R",
-  KeyT: "T",
-  KeyY: "Y",
-  KeyU: "U",
-  KeyI: "I",
-  KeyO: "O",
-  KeyP: "P",
-  BracketLeft: "[",
-  BracketRight: "]",
-  Backslash: "\\",
-  // ASDF row
-  KeyA: "A",
-  KeyS: "S",
-  KeyD: "D",
-  KeyF: "F",
-  KeyG: "G",
-  KeyH: "H",
-  KeyJ: "J",
-  KeyK: "K",
-  KeyL: "L",
-  Semicolon: ";",
-  Quote: "'",
-  // ZXCV row
-  KeyZ: "Z",
-  KeyX: "X",
-  KeyC: "C",
-  KeyV: "V",
-  KeyB: "B",
-  KeyN: "N",
-  KeyM: "M",
-  Comma: ",",
-  Period: ".",
-  Slash: "/",
-  // Special keys
-  Space: "Space",
-  Escape: "Esc",
-  Tab: "Tab",
-  Enter: "Enter",
-  Backspace: "Backspace",
-  // Function keys
-  F1: "F1",
-  F2: "F2",
-  F3: "F3",
-  F4: "F4",
-  F5: "F5",
-  F6: "F6",
-  F7: "F7",
-  F8: "F8",
-  F9: "F9",
-  F10: "F10",
-  F11: "F11",
-  F12: "F12",
-  // Extended function keys (F13-F24)
-  F13: "F13",
-  F14: "F14",
-  F15: "F15",
-  F16: "F16",
-  F17: "F17",
-  F18: "F18",
-  F19: "F19",
-  F20: "F20",
-  F21: "F21",
-  F22: "F22",
-  F23: "F23",
-  F24: "F24",
-  // Arrow keys
-  ArrowUp: "Up",
-  ArrowDown: "Down",
-  ArrowLeft: "Left",
-  ArrowRight: "Right",
-  // Navigation keys
-  Insert: "Insert",
-  Delete: "Delete",
-  Home: "Home",
-  End: "End",
-  PageUp: "PageUp",
-  PageDown: "PageDown",
-  // Additional keys (useful on Windows/Linux)
-  Pause: "Pause",
-  ScrollLock: "Scrolllock",
-  PrintScreen: "PrintScreen",
-  NumLock: "Numlock",
-  // Numpad keys
-  Numpad0: "num0",
-  Numpad1: "num1",
-  Numpad2: "num2",
-  Numpad3: "num3",
-  Numpad4: "num4",
-  Numpad5: "num5",
-  Numpad6: "num6",
-  Numpad7: "num7",
-  Numpad8: "num8",
-  Numpad9: "num9",
-  NumpadAdd: "numadd",
-  NumpadSubtract: "numsub",
-  NumpadMultiply: "nummult",
-  NumpadDivide: "numdiv",
-  NumpadDecimal: "numdec",
-  NumpadEnter: "Enter",
-  // Media keys (may work on some systems)
-  MediaPlayPause: "MediaPlayPause",
-  MediaStop: "MediaStop",
-  MediaTrackNext: "MediaNextTrack",
-  MediaTrackPrevious: "MediaPreviousTrack",
-};
-
-const MODIFIER_CODES = new Set([
-  "ShiftLeft",
-  "ShiftRight",
-  "ControlLeft",
-  "ControlRight",
-  "AltLeft",
-  "AltRight",
-  "MetaLeft",
-  "MetaRight",
-  "CapsLock",
-]);
 
 export interface HotkeyInputProps {
   value: string;
@@ -147,33 +21,6 @@ export interface HotkeyInputProps {
   disabled?: boolean;
   autoFocus?: boolean;
   validate?: (hotkey: string) => string | null | undefined;
-}
-
-function mapKeyboardEventToHotkey(e: KeyboardEvent): string | null {
-  if (MODIFIER_CODES.has(e.code)) {
-    return null;
-  }
-
-  const baseKey = CODE_TO_KEY[e.code];
-  if (!baseKey) {
-    return null;
-  }
-
-  const platform = getPlatform();
-  const modifiers: string[] = [];
-
-  if (platform === "darwin") {
-    if (e.ctrlKey) modifiers.push("Control");
-    if (e.metaKey) modifiers.push("Command");
-  } else {
-    if (e.ctrlKey) modifiers.push("Control");
-    if (e.metaKey) modifiers.push("Super");
-  }
-
-  if (e.altKey) modifiers.push("Alt");
-  if (e.shiftKey) modifiers.push("Shift");
-
-  return modifiers.length > 0 ? [...modifiers, baseKey].join("+") : baseKey;
 }
 
 export interface HotkeyInputVariant {
@@ -196,10 +43,14 @@ export function HotkeyInput({
   const [isFnHeld, setIsFnHeld] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastCapturedHotkeyRef = useRef<string | null>(null);
+  const lastCaptureTimeRef = useRef(0);
   const keyDownTimeRef = useRef<number>(0);
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fnHeldRef = useRef(false);
   const fnCapturedKeyRef = useRef(false);
+  const isCapturingRef = useRef(false);
+  const pressedModifierCodesRef = useRef<Set<string>>(new Set());
   const heldModifiersRef = useRef<{
     ctrl: boolean;
     meta: boolean;
@@ -212,48 +63,21 @@ export function HotkeyInput({
     alt?: string;
     shift?: string;
   }>({});
+  const peakModifiersRef = useRef<{
+    ctrl: boolean;
+    meta: boolean;
+    alt: boolean;
+    shift: boolean;
+  }>({ ctrl: false, meta: false, alt: false, shift: false });
+  const peakCodesRef = useRef<{
+    ctrl?: string;
+    meta?: string;
+    alt?: string;
+    shift?: string;
+  }>({});
   const platform = getPlatform();
   const isMac = platform === "darwin";
   const isWindows = platform === "win32";
-
-  const MODIFIER_HOLD_THRESHOLD_MS = 200;
-
-  const buildModifierOnlyHotkey = useCallback(
-    (
-      modifiers: { ctrl: boolean; meta: boolean; alt: boolean; shift: boolean },
-      codes: { ctrl?: string; meta?: string; alt?: string; shift?: string }
-    ): string | null => {
-      // Check for right-side single modifier first
-      const rightSidePressed: string[] = [];
-      if (codes.ctrl === "ControlRight") rightSidePressed.push("RightControl");
-      if (codes.meta === "MetaRight") rightSidePressed.push(isMac ? "RightCommand" : "RightSuper");
-      if (codes.alt === "AltRight") rightSidePressed.push(isMac ? "RightOption" : "RightAlt");
-      if (codes.shift === "ShiftRight") rightSidePressed.push("RightShift");
-
-      // If exactly one right-side modifier, allow it as single-key hotkey
-      if (rightSidePressed.length === 1) {
-        const activeCount = [modifiers.ctrl, modifiers.meta, modifiers.alt, modifiers.shift].filter(
-          Boolean
-        ).length;
-        if (activeCount === 1) {
-          return rightSidePressed[0];
-        }
-      }
-
-      // Otherwise require 2+ modifiers (existing logic)
-      const parts: string[] = [];
-      if (modifiers.ctrl) parts.push("Control");
-      if (modifiers.meta) parts.push(isMac ? "Command" : "Super");
-      if (modifiers.alt) parts.push("Alt");
-      if (modifiers.shift) parts.push("Shift");
-
-      if (parts.length >= 2) {
-        return parts.join("+");
-      }
-      return null;
-    },
-    [isMac]
-  );
 
   const clearFnHeld = useCallback(() => {
     setIsFnHeld(false);
@@ -261,8 +85,46 @@ export function HotkeyInput({
     fnCapturedKeyRef.current = false;
   }, []);
 
+  const resetModifierState = useCallback(() => {
+    pressedModifierCodesRef.current = new Set();
+    heldModifiersRef.current = { ctrl: false, meta: false, alt: false, shift: false };
+    modifierCodesRef.current = {};
+    peakModifiersRef.current = { ctrl: false, meta: false, alt: false, shift: false };
+    peakCodesRef.current = {};
+    setActiveModifiers(fnHeldRef.current ? new Set(["Fn"]) : new Set());
+    keyDownTimeRef.current = 0;
+  }, []);
+
+  const syncFromPressedCodes = useCallback(() => {
+    const held = modifiersFromPressedCodes(pressedModifierCodesRef.current);
+    const codes = modifierCodesFromPressedCodes(pressedModifierCodesRef.current);
+    heldModifiersRef.current = held;
+    modifierCodesRef.current = codes;
+
+    const count = countModifiers(held);
+    if (count > countModifiers(peakModifiersRef.current)) {
+      peakModifiersRef.current = { ...held };
+      peakCodesRef.current = { ...codes };
+    }
+
+    const labels = activeModifierLabels(held, platform);
+    if (fnHeldRef.current) labels.push("Fn");
+    setActiveModifiers(new Set(labels));
+  }, [platform]);
+
   const finalizeCapture = useCallback(
     (hotkey: string) => {
+      const now = Date.now();
+      if (lastCapturedHotkeyRef.current === hotkey && now - lastCaptureTimeRef.current < 150) {
+        return;
+      }
+      lastCaptureTimeRef.current = now;
+
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+        blurTimeoutRef.current = null;
+      }
+
       if (warningTimeoutRef.current) {
         clearTimeout(warningTimeoutRef.current);
         warningTimeoutRef.current = null;
@@ -273,10 +135,7 @@ export function HotkeyInput({
         if (errorMsg) {
           setValidationWarning(errorMsg);
           warningTimeoutRef.current = setTimeout(() => setValidationWarning(null), 4000);
-          heldModifiersRef.current = { ctrl: false, meta: false, alt: false, shift: false };
-          modifierCodesRef.current = {};
-          setActiveModifiers(new Set());
-          keyDownTimeRef.current = 0;
+          resetModifierState();
           clearFnHeld();
           return;
         }
@@ -286,12 +145,32 @@ export function HotkeyInput({
       lastCapturedHotkeyRef.current = hotkey;
       onChange(hotkey);
       setIsCapturing(false);
+      isCapturingRef.current = false;
       setActiveModifiers(new Set());
       clearFnHeld();
+      resetModifierState();
+      window.electronAPI?.setHotkeyListeningMode?.(false, hotkey);
       containerRef.current?.blur();
     },
-    [validate, onChange, clearFnHeld]
+    [validate, onChange, clearFnHeld, resetModifierState]
   );
+
+  const tryFinalizeModifierCombo = useCallback(() => {
+    const hotkey = buildModifierOnlyHotkey(
+      peakModifiersRef.current,
+      peakCodesRef.current,
+      platform
+    );
+    if (!hotkey) return false;
+
+    if (fnHeldRef.current) {
+      fnCapturedKeyRef.current = true;
+      finalizeCapture(`Fn+${hotkey}`);
+    } else {
+      finalizeCapture(hotkey);
+    }
+    return true;
+  }, [finalizeCapture, platform]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -299,48 +178,40 @@ export function HotkeyInput({
       e.preventDefault();
       e.stopPropagation();
 
-      // Track held modifiers for modifier-only capture
-      heldModifiersRef.current = {
-        ctrl: e.ctrlKey,
-        meta: e.metaKey,
-        alt: e.altKey,
-        shift: e.shiftKey,
-      };
-
-      // Track which specific keys are pressed (for left/right detection)
-      const code = e.nativeEvent.code;
-      if (code === "ControlLeft" || code === "ControlRight") {
-        modifierCodesRef.current.ctrl = code;
-      } else if (code === "MetaLeft" || code === "MetaRight") {
-        modifierCodesRef.current.meta = code;
-      } else if (code === "AltLeft" || code === "AltRight") {
-        modifierCodesRef.current.alt = code;
-      } else if (code === "ShiftLeft" || code === "ShiftRight") {
-        modifierCodesRef.current.shift = code;
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+        blurTimeoutRef.current = null;
       }
 
-      // Track when first pressed (for hold detection)
+      const code = e.nativeEvent.code;
+      if (MODIFIER_CODES.has(code)) {
+        updatePressedModifierCode(pressedModifierCodesRef.current, code, true);
+        syncFromPressedCodes();
+      } else {
+        heldModifiersRef.current = {
+          ctrl: e.ctrlKey,
+          meta: e.metaKey,
+          alt: e.altKey,
+          shift: e.shiftKey,
+        };
+      }
+
       if (keyDownTimeRef.current === 0) {
         keyDownTimeRef.current = Date.now();
       }
 
-      const mods = new Set<string>();
-      if (isMac) {
-        if (e.metaKey) mods.add("Cmd");
-        if (e.ctrlKey) mods.add("Ctrl");
-      } else {
-        if (e.ctrlKey) mods.add("Ctrl");
-        if (e.metaKey) mods.add(isWindows ? "Win" : "Super");
-      }
-      if (e.altKey) mods.add(isMac ? "Option" : "Alt");
-      if (e.shiftKey) mods.add("Shift");
-      if (fnHeldRef.current) mods.add("Fn");
-      setActiveModifiers(mods);
-
-      // Try to get non-modifier hotkey first
-      const hotkey = mapKeyboardEventToHotkey(e.nativeEvent);
+      const hotkey = captureHotkeyFromKeyDown(
+        {
+          ...e.nativeEvent,
+          ctrlKey: heldModifiersRef.current.ctrl,
+          metaKey: heldModifiersRef.current.meta,
+          altKey: heldModifiersRef.current.alt,
+          shiftKey: heldModifiersRef.current.shift,
+        },
+        modifierCodesRef.current,
+        platform
+      );
       if (hotkey) {
-        keyDownTimeRef.current = 0;
         if (fnHeldRef.current) {
           fnCapturedKeyRef.current = true;
           finalizeCapture(`Fn+${hotkey}`);
@@ -348,9 +219,8 @@ export function HotkeyInput({
           finalizeCapture(hotkey);
         }
       }
-      // If no base key, modifiers are held - don't finalize yet
     },
-    [disabled, isMac, isWindows, finalizeCapture]
+    [disabled, finalizeCapture, platform, syncFromPressedCodes]
   );
 
   const handleKeyUp = useCallback(
@@ -358,42 +228,21 @@ export function HotkeyInput({
       if (disabled) return;
       e.preventDefault();
 
-      const wasHoldingModifiers =
-        heldModifiersRef.current.ctrl ||
-        heldModifiersRef.current.meta ||
-        heldModifiersRef.current.alt ||
-        heldModifiersRef.current.shift;
-
       let attempted = false;
 
-      if (wasHoldingModifiers && MODIFIER_CODES.has(e.nativeEvent.code)) {
-        const holdDuration = Date.now() - keyDownTimeRef.current;
-
-        if (holdDuration >= MODIFIER_HOLD_THRESHOLD_MS) {
-          const modifierHotkey = buildModifierOnlyHotkey(
-            heldModifiersRef.current,
-            modifierCodesRef.current
-          );
-          if (modifierHotkey) {
-            attempted = true;
-            if (fnHeldRef.current) {
-              fnCapturedKeyRef.current = true;
-              finalizeCapture(`Fn+${modifierHotkey}`);
-            } else {
-              finalizeCapture(modifierHotkey);
-            }
-          }
+      if (MODIFIER_CODES.has(e.nativeEvent.code)) {
+        if (countModifiers(peakModifiersRef.current) >= 2) {
+          attempted = tryFinalizeModifierCombo();
         }
+        updatePressedModifierCode(pressedModifierCodesRef.current, e.nativeEvent.code, false);
+        syncFromPressedCodes();
       }
 
-      if (!attempted) {
-        heldModifiersRef.current = { ctrl: false, meta: false, alt: false, shift: false };
-        modifierCodesRef.current = {};
-        setActiveModifiers(fnHeldRef.current ? new Set(["Fn"]) : new Set());
-        keyDownTimeRef.current = 0;
+      if (!attempted && countModifiers(heldModifiersRef.current) === 0) {
+        resetModifierState();
       }
     },
-    [disabled, buildModifierOnlyHotkey, finalizeCapture]
+    [disabled, tryFinalizeModifierCombo, resetModifierState, syncFromPressedCodes]
   );
 
   const handleMouseDown = useCallback(
@@ -411,23 +260,42 @@ export function HotkeyInput({
   );
 
   const handleFocus = useCallback(() => {
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = null;
+    }
+
     if (!disabled) {
       setIsCapturing(true);
+      isCapturingRef.current = true;
       setValidationWarning(null);
       clearFnHeld();
+      resetModifierState();
       window.electronAPI?.setHotkeyListeningMode?.(true);
     }
-  }, [disabled, clearFnHeld]);
+  }, [disabled, clearFnHeld, resetModifierState]);
 
   const handleBlur = useCallback(() => {
-    setIsCapturing(false);
-    setActiveModifiers(new Set());
-    setValidationWarning(null);
-    clearFnHeld();
-    window.electronAPI?.setHotkeyListeningMode?.(false, lastCapturedHotkeyRef.current);
-    lastCapturedHotkeyRef.current = null;
-    onBlur?.();
-  }, [onBlur, clearFnHeld]);
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+    }
+
+    blurTimeoutRef.current = setTimeout(() => {
+      setIsCapturing(false);
+      isCapturingRef.current = false;
+      setActiveModifiers(new Set());
+      setValidationWarning(null);
+      clearFnHeld();
+      resetModifierState();
+      window.electronAPI?.setHotkeyListeningMode?.(false, lastCapturedHotkeyRef.current);
+      lastCapturedHotkeyRef.current = null;
+      onBlur?.();
+    }, 350);
+  }, [onBlur, clearFnHeld, resetModifierState]);
+
+  useEffect(() => {
+    isCapturingRef.current = isCapturing;
+  }, [isCapturing]);
 
   useEffect(() => {
     if (autoFocus && containerRef.current) {
@@ -437,10 +305,34 @@ export function HotkeyInput({
 
   useEffect(() => {
     return () => {
+      if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
       window.electronAPI?.setHotkeyListeningMode?.(false, null);
       if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (isMac) return;
+
+    const disposeNative = window.electronAPI?.onNativeHotkeyCaptured?.((hotkey: string) => {
+      if (!isCapturingRef.current || !hotkey) return;
+      finalizeCapture(hotkey);
+    });
+
+    return () => disposeNative?.();
+  }, [isMac, finalizeCapture]);
+
+  useEffect(() => {
+    if (!isCapturing || isMac || activeModifiers.size < 2) return;
+
+    const timer = setTimeout(() => {
+      if (isCapturingRef.current) {
+        tryFinalizeModifierCombo();
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [isCapturing, isMac, activeModifiers, tryFinalizeModifierCombo]);
 
   useEffect(() => {
     if (!isCapturing || !isMac) return;
@@ -471,6 +363,13 @@ export function HotkeyInput({
   const displayValue = formatHotkeyLabel(value);
   const isGlobe = isGlobeLikeHotkey(value);
   const hotkeyParts = value?.includes("+") ? displayValue.split("+") : [];
+  const hasModifierOnlyCombo = activeModifiers.size >= 2;
+
+  const modifierCaptureHint = hasModifierOnlyCombo
+    ? t("hotkeyInput.modifierOnlyHint")
+    : isFnHeld
+      ? t("hotkeyInput.fnHeldHint")
+      : null;
 
   // Hero variant: large centered key display for onboarding
   if (variant === "hero") {
@@ -499,7 +398,6 @@ export function HotkeyInput({
           }
         `}
       >
-        {/* Recording state */}
         {isCapturing ? (
           <div className="flex flex-col items-center gap-3">
             <div className="flex items-center gap-2">
@@ -517,12 +415,12 @@ export function HotkeyInput({
                       {mod}
                     </kbd>
                   ))}
-                  <span className="text-primary/50 text-sm font-medium">+</span>
+                  {!hasModifierOnlyCombo && (
+                    <span className="text-primary/50 text-sm font-medium">+</span>
+                  )}
                 </div>
-                {isFnHeld && (
-                  <span className="text-xs text-muted-foreground">
-                    {t("hotkeyInput.fnHeldHint")}
-                  </span>
+                {modifierCaptureHint && (
+                  <span className="text-xs text-muted-foreground">{modifierCaptureHint}</span>
                 )}
               </div>
             ) : (
@@ -540,7 +438,6 @@ export function HotkeyInput({
             )}
           </div>
         ) : value ? (
-          /* Has value: show the hotkey prominently */
           <div className="flex flex-col items-center gap-2">
             <div className="flex items-center gap-1.5">
               {hotkeyParts.length > 0 ? (
@@ -569,7 +466,6 @@ export function HotkeyInput({
             </span>
           </div>
         ) : (
-          /* Empty state */
           <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
             <span className="text-sm font-medium">{t("hotkeyInput.clickToSet")}</span>
           </div>
@@ -578,7 +474,6 @@ export function HotkeyInput({
     );
   }
 
-  // Default variant: compact inline display
   return (
     <div
       ref={containerRef}
@@ -627,9 +522,14 @@ export function HotkeyInput({
                       {mod}
                     </kbd>
                   ))}
-                  <span className="text-primary/40 text-xs">
-                    {isFnHeld ? t("hotkeyInput.fnCaptureHint") : t("hotkeyInput.keyHint")}
-                  </span>
+                  {!hasModifierOnlyCombo && (
+                    <span className="text-primary/40 text-xs">
+                      {isFnHeld ? t("hotkeyInput.fnCaptureHint") : t("hotkeyInput.keyHint")}
+                    </span>
+                  )}
+                  {hasModifierOnlyCombo && (
+                    <span className="text-primary/40 text-xs">{t("hotkeyInput.modifierOnlyHint")}</span>
+                  )}
                 </div>
               ) : (
                 <span className="text-xs text-muted-foreground">

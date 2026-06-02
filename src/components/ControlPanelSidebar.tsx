@@ -13,8 +13,13 @@ import {
   UserPlus,
   X,
   Search,
+  Sliders,
+  Brain,
+  Keyboard,
 } from "lucide-react";
 import logoIcon from "../assets/icon.png";
+import openMurLogoDarkText from "../assets/openMur-logo-dark-text.png";
+import openMurLogoLightText from "../assets/openMur-logo-light-text.png";
 import { useTranslation } from "react-i18next";
 import { cn } from "./lib/utils";
 import SupportDropdown from "./ui/SupportDropdown";
@@ -24,11 +29,15 @@ import InviteTeammateDialog from "./InviteTeammateDialog";
 import CreateWorkspaceDialog from "./CreateWorkspaceDialog";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { WORKSPACES_ENABLED } from "../lib/features";
+import { LOCAL_ONLY } from "../config/localOnlyMode";
 
 const platform = getCachedPlatform();
 
 export type ControlPanelView =
   | "home"
+  | "general"
+  | "models"
+  | "hotkeys"
   | "chat"
   | "personal-notes"
   | "dictionary"
@@ -90,29 +99,58 @@ export default function ControlPanelSidebar({
     id: ControlPanelView;
     label: string;
     icon: React.ComponentType<{ size?: number; className?: string }>;
-  }[] = [
-    { id: "home", label: t("sidebar.home"), icon: Home },
-    { id: "chat", label: t("sidebar.chat"), icon: MessageSquare },
-    { id: "personal-notes", label: t("sidebar.notes"), icon: NotebookPen },
-    { id: "upload", label: t("sidebar.upload"), icon: Upload },
-    { id: "dictionary", label: t("sidebar.dictionary"), icon: BookOpen },
-    { id: "integrations", label: t("sidebar.integrations"), icon: Blocks },
-  ];
+  }[] = LOCAL_ONLY
+    ? [
+        { id: "general", label: t("localSetup.tabs.general"), icon: Sliders },
+        { id: "models", label: t("localSetup.tabs.models"), icon: Brain },
+        { id: "hotkeys", label: t("localSetup.tabs.hotkeys"), icon: Keyboard },
+        { id: "home", label: t("sidebar.home"), icon: Home },
+        { id: "dictionary", label: t("sidebar.dictionary"), icon: BookOpen },
+      ]
+    : [
+        { id: "home", label: t("sidebar.home"), icon: Home },
+        { id: "chat", label: t("sidebar.chat"), icon: MessageSquare },
+        { id: "personal-notes", label: t("sidebar.notes"), icon: NotebookPen },
+        { id: "upload", label: t("sidebar.upload"), icon: Upload },
+        { id: "dictionary", label: t("sidebar.dictionary"), icon: BookOpen },
+        { id: "integrations", label: t("sidebar.integrations"), icon: Blocks },
+      ];
 
   return (
     <div className="w-48 h-full shrink-0 border-r border-border/15 dark:border-white/6 flex flex-col bg-surface-1/60 dark:bg-surface-1">
-      <div
-        className="w-full h-10 shrink-0"
-        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
-      />
+      <div className="relative h-11 w-full shrink-0">
+        <div
+          className="absolute inset-0"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        />
+        {LOCAL_ONLY && (
+          <div
+            className="absolute left-3 top-2.5 z-10"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          >
+            <img
+              src={openMurLogoDarkText}
+              alt="openMur"
+              className="h-[27px] w-auto max-w-[calc(100%-4px)] object-contain object-left dark:hidden"
+              draggable={false}
+            />
+            <img
+              src={openMurLogoLightText}
+              alt="openMur"
+              className="hidden h-[27px] w-auto max-w-[calc(100%-4px)] object-contain object-left dark:block"
+              draggable={false}
+            />
+          </div>
+        )}
+      </div>
 
-      {WORKSPACES_ENABLED && isSignedIn && (
+      {WORKSPACES_ENABLED && isSignedIn && !LOCAL_ONLY && (
         <div className="px-2 pt-1 pb-1">
           <WorkspaceSwitcher userName={userName} />
         </div>
       )}
 
-      {onOpenSearch && (
+      {onOpenSearch && !LOCAL_ONLY && (
         <div className="px-2 pt-2 pb-1">
           <button
             onClick={onOpenSearch}
@@ -134,7 +172,10 @@ export default function ControlPanelSidebar({
         </div>
       )}
 
-      <nav className="flex flex-col gap-0.5 px-2 pt-2 pb-2">
+      <nav
+        className={cn("flex flex-col gap-0.5 px-2 pb-2", LOCAL_ONLY ? "pt-1" : "pt-2")}
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.id;
@@ -147,7 +188,7 @@ export default function ControlPanelSidebar({
                 "group relative flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md outline-none transition-colors duration-150 text-left",
                 "focus-visible:ring-1 focus-visible:ring-primary/30",
                 isActive
-                  ? "bg-primary/8 dark:bg-primary/10"
+                  ? "bg-[#889eff]/12 dark:bg-[#889eff]/14"
                   : "hover:bg-foreground/4 dark:hover:bg-white/4 active:bg-foreground/6"
               )}
             >
@@ -156,7 +197,7 @@ export default function ControlPanelSidebar({
                 className={cn(
                   "shrink-0 transition-colors duration-150",
                   isActive
-                    ? "text-primary"
+                    ? "text-[#889eff]"
                     : "text-foreground/60 group-hover:text-foreground/75 dark:text-foreground/55 dark:group-hover:text-foreground/70"
                 )}
               />
@@ -177,7 +218,7 @@ export default function ControlPanelSidebar({
 
       <div className="flex-1" />
 
-      {showLimitBanner && (
+      {showLimitBanner && !LOCAL_ONLY && (
         <div className="px-2 pb-2">
           <div className="rounded-lg border border-destructive/25 bg-destructive/5 dark:bg-destructive/10 p-3">
             <div className="flex flex-col items-center text-center">
@@ -199,7 +240,7 @@ export default function ControlPanelSidebar({
         </div>
       )}
 
-      {showUpgradeBanner && (
+      {showUpgradeBanner && !LOCAL_ONLY && (
         <div className="px-2 pb-2">
           <div className="relative rounded-lg border border-primary/20 bg-primary/5 dark:bg-primary/10 p-3">
             <button
@@ -231,14 +272,17 @@ export default function ControlPanelSidebar({
         </div>
       )}
 
-      <div className="px-2 pb-2 space-y-0.5">
+      <div
+        className="px-2 pb-2 space-y-0.5"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
         {updateAction && (
           <div className="px-1 pb-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
             {updateAction}
           </div>
         )}
 
-        {isSignedIn && onOpenReferrals && (
+        {isSignedIn && onOpenReferrals && !LOCAL_ONLY && (
           <button
             onClick={onOpenReferrals}
             aria-label={t("sidebar.referral")}
@@ -254,7 +298,7 @@ export default function ControlPanelSidebar({
           </button>
         )}
 
-        {WORKSPACES_ENABLED && isSignedIn && (
+        {WORKSPACES_ENABLED && isSignedIn && !LOCAL_ONLY && (
           <button
             onClick={() => (activeWorkspace ? setInviteOpen(true) : setCreateWorkspaceOpen(true))}
             aria-label={
@@ -272,19 +316,21 @@ export default function ControlPanelSidebar({
           </button>
         )}
 
-        <button
-          onClick={onOpenSettings}
-          aria-label={t("sidebar.settings")}
-          className="group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none hover:bg-foreground/4 dark:hover:bg-white/4 focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150"
-        >
-          <Settings
-            size={15}
-            className="shrink-0 text-foreground/60 group-hover:text-foreground/75 dark:text-foreground/50 dark:group-hover:text-foreground/65 transition-colors duration-150"
-          />
-          <span className="text-xs text-foreground/80 group-hover:text-foreground dark:text-foreground/70 dark:group-hover:text-foreground/85 transition-colors duration-150">
-            {t("sidebar.settings")}
-          </span>
-        </button>
+        {!LOCAL_ONLY && (
+          <button
+            onClick={onOpenSettings}
+            aria-label={t("sidebar.settings")}
+            className="group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none hover:bg-foreground/4 dark:hover:bg-white/4 focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150"
+          >
+            <Settings
+              size={15}
+              className="shrink-0 text-foreground/60 group-hover:text-foreground/75 dark:text-foreground/50 dark:group-hover:text-foreground/65 transition-colors duration-150"
+            />
+            <span className="text-xs text-foreground/80 group-hover:text-foreground dark:text-foreground/70 dark:group-hover:text-foreground/85 transition-colors duration-150">
+              {t("sidebar.settings")}
+            </span>
+          </button>
+        )}
 
         <SupportDropdown
           trigger={

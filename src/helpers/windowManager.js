@@ -1,4 +1,5 @@
 const { app, screen, BrowserWindow, shell, dialog } = require("electron");
+const path = require("path");
 const debugLogger = require("./debugLogger");
 const HotkeyManager = require("./hotkeyManager");
 const { isGlobeLikeHotkey } = HotkeyManager;
@@ -7,6 +8,9 @@ const MenuManager = require("./menuManager");
 const DevServerManager = require("./devServerManager");
 const { i18nMain } = require("./i18nMain");
 const { DEV_SERVER_PORT } = DevServerManager;
+const HotkeyCaptureManager = require("./hotkeyCaptureManager");
+const { LOCAL_ONLY } = require("./localOnlyFlag");
+const { PillAnchorTracker } = require("./pillAnchor");
 const {
   MAIN_WINDOW_CONFIG,
   CONTROL_PANEL_CONFIG,
@@ -17,6 +21,12 @@ const {
   WINDOW_SIZES,
   WindowPositionUtil,
 } = require("./windowConfig");
+const { applyOpenMurWindowIcon, getOpenMurWindowIconPath } = require("./openMurIcon");
+
+function withOpenMurIcon(config) {
+  const iconPath = getOpenMurWindowIconPath();
+  return iconPath ? { ...config, icon: iconPath } : config;
+}
 
 class WindowManager {
   constructor() {
@@ -36,20 +46,33 @@ class WindowManager {
     };
     this.tray = null;
     this.hotkeyManager = new HotkeyManager();
+    this.hotkeyCaptureManager = new HotkeyCaptureManager();
     this.dragManager = new DragManager();
     this.isQuitting = false;
     this.loadErrorShown = false;
     this.macCompoundPushState = null;
     this.winPushState = null;
     this._cachedActivationMode = "tap";
-    this._floatingIconAutoHide = false;
+    this._localOnlyMode = LOCAL_ONLY;
+    this._floatingIconAutoHide = LOCAL_ONLY;
     this._agentAnimationState = null;
     this._panelStartPosition = "bottom-right";
     this._isDictatingToggle = false;
     this._pendingMeetingNoteNavigation = null;
+    this._transcriptionPreviewLoadPromise = null;
+    this._pillState = "idle";
+    this._pillRepositionInterval = null;
+    this._pillLastDisplayId = null;
+    this._pillLastAnchorPoint = null;
+    this._pillAlwaysOnTopSet = false;
+    this._pillPreviewFullText = "";
+    this._pillDoneTimer = null;
+    this._pillAnchorTracker = new PillAnchorTracker();
+    this.onHotkeyInitialized = null;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
+      this._stopPillRepositionTracking();
       this.hotkeyManager.unregisterAll();
     });
   }
@@ -63,10 +86,13 @@ class WindowManager {
       this._panelStartPosition
     );
 
-    this.mainWindow = new BrowserWindow({
-      ...MAIN_WINDOW_CONFIG,
-      ...position,
-    });
+    this.mainWindow = new BrowserWindow(
+      withOpenMurIcon({
+        ...MAIN_WINDOW_CONFIG,
+        ...position,
+      })
+    );
+    applyOpenMurWindowIcon(this.mainWindow);
 
     this.setMainWindowInteractivity(false);
     this.registerMainWindowEvents();
@@ -102,6 +128,9 @@ class WindowManager {
 
     await this.loadMainWindow();
     await this.initializeHotkey();
+    if (typeof this.onHotkeyInitialized === "function") {
+      this.onHotkeyInitialized();
+    }
     this.dragManager.setTargetWindow(this.mainWindow);
     MenuManager.setupMainMenu(() => this.openSettings());
   }
@@ -251,9 +280,6 @@ class WindowManager {
       }
       lastToggleTime = now;
 
-      // Capture target app PID before the window might steal focus
-      if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
-
       this.sendToggleDictation();
     };
   }
@@ -397,7 +423,8 @@ class WindowManager {
     const MIN_HOLD_DURATION_MS = 150;
     const downTime = Date.now();
 
-    this.showDictationPanel();
+    if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
+    void this.setDictationPillState("listening");
 
     this.winPushState = {
       active: true,
@@ -430,6 +457,7 @@ class WindowManager {
     } else {
       this.hideDictationPanel();
     }
+
   }
 
   resetWindowsPushState() {
@@ -445,6 +473,10 @@ class WindowManager {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      const willStartRecording = !this._isDictatingToggle;
+      if (willStartRecording && this.textEditMonitor) {
+        this.textEditMonitor.captureTargetPid();
+      }
       this.showDictationPanel();
       this.mainWindow.webContents.send("toggle-dictation");
       this._isDictatingToggle = !this._isDictatingToggle;
@@ -457,7 +489,7 @@ class WindowManager {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.showDictationPanel();
+      void this.setDictationPillState("listening");
       this.mainWindow.webContents.send("start-dictation");
       this.meetingDetectionEngine?.setUserRecording(true);
     }
@@ -468,6 +500,9 @@ class WindowManager {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      if (this._localOnlyMode) {
+        void this.setDictationPillState("processing");
+      }
       this.mainWindow.webContents.send("stop-dictation");
       this._isDictatingToggle = false;
       this.meetingDetectionEngine?.setUserRecording(false);
@@ -506,6 +541,11 @@ class WindowManager {
 
   setHotkeyListeningMode(enabled) {
     this.hotkeyManager.setListeningMode(enabled);
+    if (enabled) {
+      this.hotkeyCaptureManager.start(this);
+    } else {
+      this.hotkeyCaptureManager.stop(this);
+    }
   }
 
   async initializeHotkey() {
@@ -563,7 +603,8 @@ class WindowManager {
       return;
     }
 
-    this.controlPanelWindow = new BrowserWindow(CONTROL_PANEL_CONFIG);
+    this.controlPanelWindow = new BrowserWindow(withOpenMurIcon(CONTROL_PANEL_CONFIG));
+    applyOpenMurWindowIcon(this.controlPanelWindow);
 
     this.controlPanelWindow.webContents.on("will-navigate", (event, url) => {
       const appUrl = DevServerManager.getAppUrl(true);
@@ -614,6 +655,9 @@ class WindowManager {
       }
       this.controlPanelWindow.show();
       this.controlPanelWindow.focus();
+      if (this.hotkeyManager.isInListeningMode()) {
+        this.hotkeyCaptureManager.start(this);
+      }
     });
 
     this.controlPanelWindow.on("close", (event) => {
@@ -757,29 +801,214 @@ class WindowManager {
 
   async ensureTranscriptionPreviewWindow() {
     if (this.transcriptionPreviewWindow && !this.transcriptionPreviewWindow.isDestroyed()) {
-      return;
+      if (this._localOnlyMode) {
+        const currentUrl = this.transcriptionPreviewWindow.webContents.getURL();
+        if (!currentUrl.includes("listening-pill.html")) {
+          this.transcriptionPreviewWindow.close();
+          this.transcriptionPreviewWindow = null;
+          this._transcriptionPreviewLoadPromise = null;
+        }
+      }
+
+      if (this.transcriptionPreviewWindow && this._transcriptionPreviewLoadPromise) {
+        await this._transcriptionPreviewLoadPromise;
+      }
+      if (this.transcriptionPreviewWindow && !this.transcriptionPreviewWindow.isDestroyed()) {
+        return;
+      }
     }
 
-    this.transcriptionPreviewWindow = new BrowserWindow(TRANSCRIPTION_PREVIEW_CONFIG);
+    this.transcriptionPreviewWindow = new BrowserWindow(
+      withOpenMurIcon(TRANSCRIPTION_PREVIEW_CONFIG)
+    );
+    applyOpenMurWindowIcon(this.transcriptionPreviewWindow);
 
     this.transcriptionPreviewWindow.on("closed", () => {
       this.transcriptionPreviewWindow = null;
+      this._transcriptionPreviewLoadPromise = null;
     });
 
-    if (process.env.NODE_ENV === "development") {
-      await DevServerManager.waitForDevServer();
-      await this.transcriptionPreviewWindow.loadURL(
-        `${DevServerManager.DEV_SERVER_URL}?transcription-preview=true`
-      );
-    } else {
-      const fileInfo = DevServerManager.getAppFilePath(false);
-      await this.transcriptionPreviewWindow.loadFile(fileInfo.path, {
-        query: { ...fileInfo.query, "transcription-preview": "true" },
-      });
+    this._transcriptionPreviewLoadPromise = (async () => {
+      const previewWindow = this.transcriptionPreviewWindow;
+      if (!previewWindow || previewWindow.isDestroyed()) return;
+
+      if (this._localOnlyMode) {
+        if (process.env.NODE_ENV === "development") {
+          await DevServerManager.waitForDevServer();
+          if (!previewWindow || previewWindow.isDestroyed()) return;
+          await previewWindow.loadURL(`${DevServerManager.DEV_SERVER_URL}/listening-pill.html`);
+        } else {
+          const fileInfo = DevServerManager.getAppFilePath(false);
+          const pillPath = path.join(path.dirname(fileInfo.path), "listening-pill.html");
+          if (!previewWindow || previewWindow.isDestroyed()) return;
+          await previewWindow.loadFile(pillPath);
+        }
+        return;
+      }
+
+      if (process.env.NODE_ENV === "development") {
+        await DevServerManager.waitForDevServer();
+        if (!previewWindow || previewWindow.isDestroyed()) return;
+        await previewWindow.loadURL(
+          `${DevServerManager.DEV_SERVER_URL}?transcription-preview=true`
+        );
+      } else {
+        const fileInfo = DevServerManager.getAppFilePath(false);
+        if (!previewWindow || previewWindow.isDestroyed()) return;
+        await previewWindow.loadFile(fileInfo.path, {
+          query: { ...fileInfo.query, "transcription-preview": "true" },
+        });
+      }
+    })();
+
+    await this._transcriptionPreviewLoadPromise;
+  }
+
+  _getDictationPillSize(state = "idle") {
+    const sizes = {
+      idle: { width: 48, height: 32 },
+      listening: { width: 112, height: 64 },
+      processing: { width: 156, height: 40 },
+      pasting: { width: 148, height: 40 },
+      done: { width: 240, height: 52 },
+    };
+    return sizes[state] || sizes.idle;
+  }
+
+  _clearPillDoneTimer() {
+    if (this._pillDoneTimer) {
+      clearTimeout(this._pillDoneTimer);
+      this._pillDoneTimer = null;
     }
   }
 
-  async showTranscriptionPreview(text) {
+  async showDictationPillDone(text) {
+    if (!this._localOnlyMode) {
+      this.completeTranscriptionPreview(text);
+      return;
+    }
+
+    this._clearPillDoneTimer();
+    const trimmed = text?.trim?.() || "";
+    this._pillPreviewFullText = trimmed;
+
+    await this.ensureTranscriptionPreviewWindow();
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) {
+      return;
+    }
+
+    if (trimmed) {
+      this.transcriptionPreviewWindow.webContents.send("preview-snippet", trimmed);
+    }
+
+    await this.setDictationPillState("done");
+
+    this._pillDoneTimer = setTimeout(() => {
+      this._pillDoneTimer = null;
+      this._pillPreviewFullText = "";
+      if (this.transcriptionPreviewWindow && !this.transcriptionPreviewWindow.isDestroyed()) {
+        this.transcriptionPreviewWindow.webContents.send("preview-snippet", "");
+      }
+      void this.setDictationPillState("idle");
+    }, 1600);
+  }
+
+  resetDictationPillPreview() {
+    this._pillPreviewFullText = "";
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+    this.transcriptionPreviewWindow.webContents.send("preview-snippet", "");
+  }
+
+  appendDictationPillPreview(chunkText) {
+    if (!chunkText?.trim()) return;
+    this._pillPreviewFullText = `${this._pillPreviewFullText} ${chunkText.trim()}`.trim();
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+    this.transcriptionPreviewWindow.webContents.send("preview-snippet", this._pillPreviewFullText);
+  }
+
+  _getDictationPillDisplay() {
+    const anchorPoint = this._pillAnchorTracker.resolve(screen);
+    return screen.getDisplayNearestPoint(anchorPoint);
+  }
+
+  _getDictationPillBounds(size) {
+    const display = this._getDictationPillDisplay();
+    return WindowPositionUtil.getCursorBottomIndicatorPosition(display, size, {
+      bottomMargin: 90,
+    });
+  }
+
+  async positionDictationPill(state = this._pillState) {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+
+    const size = this._getDictationPillSize(state);
+    const position = this._getDictationPillBounds(size);
+    this.transcriptionPreviewWindow.setBounds(position);
+    const display = this._getDictationPillDisplay();
+    this._pillLastDisplayId = display.id;
+  }
+
+  _startPillRepositionTracking() {
+    if (this._pillRepositionInterval) return;
+
+    this._pillRepositionInterval = setInterval(() => {
+      if (
+        !this._localOnlyMode ||
+        !this.transcriptionPreviewWindow ||
+        this.transcriptionPreviewWindow.isDestroyed()
+      ) {
+        return;
+      }
+
+      const display = this._getDictationPillDisplay();
+      if (display.id === this._pillLastDisplayId) return;
+
+      void this.positionDictationPill(this._pillState);
+    }, 500);
+  }
+
+  _stopPillRepositionTracking() {
+    if (this._pillRepositionInterval) {
+      clearInterval(this._pillRepositionInterval);
+      this._pillRepositionInterval = null;
+    }
+  }
+
+  async setDictationPillState(state) {
+    if (!this._localOnlyMode) return;
+
+    if (state !== "done") {
+      this._clearPillDoneTimer();
+    }
+
+    this._pillState = state;
+    await this.ensureTranscriptionPreviewWindow();
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+
+    await this.positionDictationPill(state);
+    this.transcriptionPreviewWindow.webContents.send("preview-state", state);
+
+    if (!this.transcriptionPreviewWindow.isVisible()) {
+      this.transcriptionPreviewWindow.showInactive();
+      if (!this._pillAlwaysOnTopSet) {
+        WindowPositionUtil.setupAlwaysOnTop(this.transcriptionPreviewWindow);
+        this._pillAlwaysOnTopSet = true;
+      }
+    }
+  }
+
+  async showPersistentDictationPill() {
+    if (!this._localOnlyMode) return;
+
+    await this.setDictationPillState("idle");
+    this._startPillRepositionTracking();
+  }
+
+  async showListeningIndicator() {
+    await this.setDictationPillState("listening");
+  }
+
+  async showTranscriptionPreview(text, options = {}) {
     await this.ensureTranscriptionPreviewWindow();
 
     if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
@@ -787,13 +1016,32 @@ class WindowManager {
     const mainBounds =
       this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow.getBounds() : null;
 
-    if (mainBounds) {
+    const cursorPos = screen.getCursorScreenPoint();
+    const cursorDisplay = screen.getDisplayNearestPoint(cursorPos);
+    const useCursorAnchor = options.anchor === "cursor";
+
+    if (useCursorAnchor) {
+      const size = options.minimal
+        ? { width: 148, height: 44 }
+        : {
+            width: TRANSCRIPTION_PREVIEW_CONFIG.width,
+            height: TRANSCRIPTION_PREVIEW_CONFIG.height,
+          };
+      const position = WindowPositionUtil.getCursorBottomIndicatorPosition(cursorDisplay, size);
+      this.transcriptionPreviewWindow.setBounds(position);
+    } else if (mainBounds) {
       const display = screen.getDisplayNearestPoint({ x: mainBounds.x, y: mainBounds.y });
       const position = WindowPositionUtil.getTranscriptionPreviewPosition(display, mainBounds, {
         width: TRANSCRIPTION_PREVIEW_CONFIG.width,
         height: TRANSCRIPTION_PREVIEW_CONFIG.height,
       });
       this.transcriptionPreviewWindow.setBounds(position);
+    }
+
+    if (options.minimal) {
+      this.transcriptionPreviewWindow.webContents.send("preview-minimal", true);
+    } else {
+      this.transcriptionPreviewWindow.webContents.send("preview-minimal", false);
     }
 
     this.transcriptionPreviewWindow.webContents.send("preview-text", text);
@@ -803,11 +1051,27 @@ class WindowManager {
 
   appendTranscriptionPreview(text) {
     if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+    if (this._localOnlyMode) {
+      this.appendDictationPillPreview(text);
+      return;
+    }
     this.transcriptionPreviewWindow.webContents.send("preview-append", text);
   }
 
   holdTranscriptionPreview(options = {}) {
     if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+
+    if (options.showCleanup) {
+      const cursorPos = screen.getCursorScreenPoint();
+      const display = screen.getDisplayNearestPoint(cursorPos);
+      const position = WindowPositionUtil.getCursorBottomIndicatorPosition(display, {
+        width: TRANSCRIPTION_PREVIEW_CONFIG.width,
+        height: TRANSCRIPTION_PREVIEW_CONFIG.height,
+      });
+      this.transcriptionPreviewWindow.setBounds(position);
+      this.transcriptionPreviewWindow.webContents.send("preview-minimal", false);
+    }
+
     this.transcriptionPreviewWindow.webContents.send("preview-hold", {
       showCleanup: !!options.showCleanup,
     });
@@ -815,12 +1079,24 @@ class WindowManager {
 
   completeTranscriptionPreview(text) {
     if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
+    if (this._localOnlyMode) {
+      void this.showDictationPillDone(text);
+      return;
+    }
     this.transcriptionPreviewWindow.webContents.send("preview-result", { text });
     this.transcriptionPreviewWindow.showInactive();
     WindowPositionUtil.setupAlwaysOnTop(this.transcriptionPreviewWindow);
   }
 
   hideTranscriptionPreview() {
+    if (this._localOnlyMode) {
+      const busy = this._pillState === "processing" || this._pillState === "pasting";
+      if (!busy) {
+        void this.setDictationPillState("idle");
+      }
+      return;
+    }
+
     if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
 
     this.transcriptionPreviewWindow.webContents.send("preview-hide");
@@ -845,15 +1121,19 @@ class WindowManager {
       Math.min(Math.round(height), TRANSCRIPTION_PREVIEW_SIZE_LIMITS.maxHeight)
     );
 
-    const anchorBounds =
-      this.mainWindow && !this.mainWindow.isDestroyed()
-        ? this.mainWindow.getBounds()
-        : this.transcriptionPreviewWindow.getBounds();
-    const display = screen.getDisplayNearestPoint({ x: anchorBounds.x, y: anchorBounds.y });
-    const bounds = WindowPositionUtil.getTranscriptionPreviewPosition(display, anchorBounds, {
-      width: targetWidth,
-      height: targetHeight,
-    });
+    const bounds = this._localOnlyMode
+      ? this._getDictationPillBounds({ width: targetWidth, height: targetHeight })
+      : (() => {
+          const anchorBounds =
+            this.mainWindow && !this.mainWindow.isDestroyed()
+              ? this.mainWindow.getBounds()
+              : this.transcriptionPreviewWindow.getBounds();
+          const display = screen.getDisplayNearestPoint({ x: anchorBounds.x, y: anchorBounds.y });
+          return WindowPositionUtil.getTranscriptionPreviewPosition(display, anchorBounds, {
+            width: targetWidth,
+            height: targetHeight,
+          });
+        })();
 
     const currentBounds = this.transcriptionPreviewWindow.getBounds();
     if (
@@ -1007,6 +1287,10 @@ class WindowManager {
   }
 
   showDictationPanel(options = {}) {
+    if (this._localOnlyMode) {
+      return;
+    }
+
     const { focus = false } = options;
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       const wasHidden = !this.mainWindow.isVisible() || this.mainWindow.isMinimized();
@@ -1046,6 +1330,18 @@ class WindowManager {
   hideDictationPanel() {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.hide();
+    }
+  }
+
+  /** Hide pill/preview so paste keystrokes go to the user's app, not our overlay. */
+  hideDictationPreviewForPaste() {
+    if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) {
+      return;
+    }
+    try {
+      this.transcriptionPreviewWindow.hide();
+    } catch {
+      // ignore
     }
   }
 

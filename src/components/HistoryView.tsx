@@ -9,6 +9,7 @@ import { formatDateGroup } from "../utils/dateFormatting";
 import { cn } from "./lib/utils";
 import { useUpcomingEvents } from "../hooks/useUpcomingEvents";
 import UpcomingMeetings from "./UpcomingMeetings";
+import { LOCAL_ONLY } from "../config/localOnlyMode";
 import { useSettingsStore } from "../stores/settingsStore";
 
 interface HistoryViewProps {
@@ -71,6 +72,12 @@ export default function HistoryView({
   return (
     <div className="px-4 pt-4 pb-6">
       <div className={cn("mx-auto", isConnected ? "max-w-5xl" : "max-w-3xl")}>
+        {LOCAL_ONLY && (
+          <p className="mb-4 text-xs text-muted-foreground leading-relaxed">
+            {t("localSetup.home.subtitle", { hotkey: formatHotkeyLabel(hotkey) })}
+          </p>
+        )}
+
         {showCloudMigrationBanner && (
           <div className="mb-3 relative rounded-lg border border-primary/20 bg-primary/5 dark:bg-primary/10 p-3">
             <button
@@ -308,7 +315,7 @@ export default function HistoryView({
             )}
           </div>
 
-          {isConnected && (
+          {!LOCAL_ONLY && isConnected && (
             <div className="w-64 shrink-0 hidden sm:block">
               <div className="sticky top-4">
                 <UpcomingMeetings events={events} isLoading={eventsLoading} />

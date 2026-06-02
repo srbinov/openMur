@@ -1,4 +1,4 @@
-const { spawn, execFile } = require("child_process");
+const { spawn, spawnSync, execFile } = require("child_process");
 const path = require("path");
 const EventEmitter = require("events");
 const fs = require("fs");
@@ -53,16 +53,66 @@ class TextEditMonitor extends EventEmitter {
     this._lastValue = null;
     this._stdoutBuffer = "";
     this.lastTargetPid = null;
+    this.lastTargetWindowId = null;
+    this.lastTargetWindowClass = null;
+    this.lastTargetWindowComm = null;
+    this.lastHyprlandAddress = null;
+  }
+
+  clearDictationTarget() {
+    this.lastTargetPid = null;
+    this.lastTargetWindowId = null;
+    this.lastTargetWindowClass = null;
+    this.lastTargetWindowComm = null;
+    this.lastHyprlandAddress = null;
+  }
+
+  _isOwnAppClass(windowClass) {
+    if (!windowClass) return false;
+    const ownClassFragments = ["electron", "openmur", "openmur", "open-mur"];
+    return ownClassFragments.some((frag) => windowClass.includes(frag));
+  }
+
+  _linuxSessionInfo() {
+    const desktop = [
+      process.env.XDG_CURRENT_DESKTOP,
+      process.env.XDG_SESSION_DESKTOP,
+      process.env.DESKTOP_SESSION,
+    ]
+      .filter(Boolean)
+      .join(":")
+      .toLowerCase();
+    const isWayland =
+      (process.env.XDG_SESSION_TYPE || "").toLowerCase() === "wayland" ||
+      !!process.env.WAYLAND_DISPLAY;
+    return {
+      isWayland,
+      isGnome: isWayland && desktop.includes("gnome"),
+      isKde: desktop.includes("kde"),
+      isHyprland: !!process.env.HYPRLAND_INSTANCE_SIGNATURE,
+    };
+  }
+
+  _commandExists(cmd) {
+    try {
+      const result = spawnSync("which", [cmd], { timeout: 500, stdio: "pipe" });
+      return result.status === 0;
+    } catch {
+      return false;
+    }
   }
 
   /**
-   * macOS: capture the active app's PID via NSWorkspace before the overlay steals focus.
-   * Must be called at hotkey press time, BEFORE showDictationPanel()/mainWindow.show().
-   * NSWorkspace.frontmostApplication correctly identifies the key window owner,
-   * ignoring panel-type windows like the OpenWhispr overlay.
+   * Capture the window that had focus when the user pressed the dictation hotkey.
+   * Must run synchronously at hotkey time — before the dictation pill steals focus.
    */
   captureTargetPid() {
+    if (process.platform === "linux") {
+      this._captureLinuxTarget();
+      return;
+    }
     if (process.platform !== "darwin") return;
+
     const script =
       'ObjC.import("AppKit"); $.NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier';
     execFile("osascript", ["-l", "JavaScript", "-e", script], { timeout: 2000 }, (err, stdout) => {
@@ -73,6 +123,207 @@ class TextEditMonitor extends EventEmitter {
         this.lastTargetPid = isNaN(pid) ? null : pid;
       }
       debugLogger.debug("[TextEditMonitor] Captured target PID", { pid: this.lastTargetPid });
+    });
+  }
+
+  _captureLinuxTarget() {
+    this.lastTargetWindowId = null;
+    this.lastTargetWindowClass = null;
+    this.lastTargetWindowComm = null;
+    this.lastHyprlandAddress = null;
+    this.lastTargetPid = null;
+
+    const { isWayland, isGnome, isHyprland } = this._linuxSessionInfo();
+    const xdotoolExists = this._commandExists("xdotool");
+    const kdotoolExists = this._commandExists("kdotool");
+    const hasDisplay = !!process.env.DISPLAY;
+
+    // Compositor-native sources first (correct on Wayland).
+    if (isHyprland || this._commandExists("hyprctl")) {
+      try {
+        const result = spawnSync("hyprctl", ["activewindow", "-j"], { timeout: 1000, stdio: "pipe" });
+        if (result.status === 0) {
+          const win = JSON.parse(result.stdout.toString());
+          if (win.class) {
+            this.lastTargetWindowClass = String(win.class).toLowerCase();
+          }
+          if (win.address != null) {
+            const addr =
+              typeof win.address === "string"
+                ? win.address.startsWith("0x")
+                  ? win.address
+                  : `0x${win.address}`
+                : `0x${Number(win.address).toString(16)}`;
+            this.lastHyprlandAddress = addr;
+          }
+          if (win.pid && Number.isFinite(win.pid) && win.pid > 0) {
+            this.lastTargetPid = win.pid;
+          }
+        }
+      } catch (err) {
+        debugLogger.debug("[TextEditMonitor] hyprctl capture failed", { error: err.message });
+      }
+    }
+
+    if (kdotoolExists) {
+      try {
+        const winResult = spawnSync("kdotool", ["getactivewindow"], { timeout: 800, stdio: "pipe" });
+        if (winResult.status === 0) {
+          const windowId = winResult.stdout.toString().trim();
+          if (windowId) {
+            this.lastTargetWindowId = windowId;
+            const clsResult = spawnSync("kdotool", ["getwindowclassname", windowId], {
+              timeout: 800,
+              stdio: "pipe",
+            });
+            if (clsResult.status === 0) {
+              this.lastTargetWindowClass =
+                clsResult.stdout.toString().trim().toLowerCase() || this.lastTargetWindowClass;
+            }
+            const pidResult = spawnSync("kdotool", ["getwindowpid", windowId], {
+              timeout: 800,
+              stdio: "pipe",
+            });
+            if (pidResult.status === 0) {
+              const pid = parseInt(pidResult.stdout.toString().trim(), 10);
+              if (Number.isFinite(pid) && pid > 0) {
+                this.lastTargetPid = pid;
+                try {
+                  this.lastTargetWindowComm =
+                    fs.readFileSync(`/proc/${pid}/comm`, "utf8").trim().toLowerCase() || null;
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        debugLogger.debug("[TextEditMonitor] kdotool capture failed", { error: err.message });
+      }
+    }
+
+    // xdotool: reliable on X11 and XWayland; skip on GNOME Wayland-only (wrong window).
+    const skipXdotool = isWayland && isGnome;
+    if (!skipXdotool && xdotoolExists && hasDisplay && !this.lastTargetWindowId) {
+      try {
+        const winResult = spawnSync("xdotool", ["getactivewindow"], { timeout: 800, stdio: "pipe" });
+        if (winResult.status === 0) {
+          const windowId = winResult.stdout.toString().trim();
+          if (windowId) {
+            this.lastTargetWindowId = windowId;
+            const clsResult = spawnSync("xdotool", ["getwindowclassname", windowId], {
+              timeout: 800,
+              stdio: "pipe",
+            });
+            if (clsResult.status === 0) {
+              const cls = clsResult.stdout.toString().trim().toLowerCase() || null;
+              if (!this._isOwnAppClass(cls)) {
+                this.lastTargetWindowClass = cls || this.lastTargetWindowClass;
+              }
+            }
+            const pidResult = spawnSync("xdotool", ["getwindowpid", windowId], {
+              timeout: 800,
+              stdio: "pipe",
+            });
+            if (pidResult.status === 0) {
+              const pid = parseInt(pidResult.stdout.toString().trim(), 10);
+              if (Number.isFinite(pid) && pid > 0 && !this.lastTargetPid) {
+                this.lastTargetPid = pid;
+                try {
+                  this.lastTargetWindowComm =
+                    fs.readFileSync(`/proc/${pid}/comm`, "utf8").trim().toLowerCase() || null;
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        debugLogger.debug("[TextEditMonitor] xdotool capture failed", { error: err.message });
+      }
+    }
+
+    if (this._isOwnAppClass(this.lastTargetWindowClass) && !this.lastHyprlandAddress) {
+      this.lastTargetWindowId = null;
+      this.lastTargetWindowClass = null;
+      this.lastTargetWindowComm = null;
+      this.lastTargetPid = null;
+    }
+
+    debugLogger.debug("[TextEditMonitor] Captured Linux target", {
+      windowId: this.lastTargetWindowId,
+      windowClass: this.lastTargetWindowClass,
+      windowComm: this.lastTargetWindowComm,
+      hyprlandAddress: this.lastHyprlandAddress,
+      pid: this.lastTargetPid,
+      isWayland,
+      isGnome,
+    });
+  }
+
+  /**
+   * Linux: refocus the window that was active when dictation started.
+   */
+  activateTargetWindow() {
+    return new Promise((resolve) => {
+      if (process.platform !== "linux") {
+        resolve(false);
+        return;
+      }
+
+      if (this.lastHyprlandAddress && this._commandExists("hyprctl")) {
+        const address = this.lastHyprlandAddress.replace(/^0x/i, "");
+        const proc = spawn("hyprctl", ["dispatch", "focuswindow", `address:0x${address}`]);
+        let settled = false;
+        const finish = (ok) => {
+          if (settled) return;
+          settled = true;
+          debugLogger.debug("[TextEditMonitor] Activated Hyprland target", {
+            address: this.lastHyprlandAddress,
+            ok,
+          });
+          resolve(ok);
+        };
+        proc.on("close", (code) => finish(code === 0));
+        proc.on("error", () => finish(false));
+        setTimeout(() => finish(true), 120);
+        return;
+      }
+
+      const activateWindow = (tool, args, label) => {
+        const proc = spawn(tool, args);
+        let settled = false;
+        const finish = (ok) => {
+          if (settled) return;
+          settled = true;
+          debugLogger.debug(`[TextEditMonitor] Activated ${label}`, {
+            windowId: this.lastTargetWindowId,
+            ok,
+          });
+          resolve(ok);
+        };
+        proc.on("close", (code) => finish(code === 0));
+        proc.on("error", () => finish(false));
+        setTimeout(() => finish(true), 180);
+      };
+
+      if (this.lastTargetWindowId && this._commandExists("kdotool")) {
+        activateWindow("kdotool", ["windowactivate", this.lastTargetWindowId], "KDE target");
+        return;
+      }
+
+      if (this.lastTargetWindowId && this._commandExists("xdotool") && process.env.DISPLAY) {
+        activateWindow(
+          "xdotool",
+          ["windowactivate", "--sync", this.lastTargetWindowId],
+          "X11 target"
+        );
+        return;
+      }
+
+      resolve(false);
     });
   }
 

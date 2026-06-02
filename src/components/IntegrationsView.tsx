@@ -21,7 +21,7 @@ import CliIntegrationCard from "./CliIntegrationCard";
 import McpIntegrationCard from "./McpIntegrationCard";
 import googleCalendarIcon from "../assets/icons/google-calendar.svg";
 
-const API_DOCS_URL = "https://docs.openwhispr.com/api/overview";
+const API_DOCS_URL = "https://docs.openmur.com/api/overview";
 
 interface IntegrationsViewProps {
   isPaid: boolean;

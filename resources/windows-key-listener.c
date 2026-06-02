@@ -31,6 +31,79 @@ static BOOL g_shiftDown = FALSE;
 static BOOL g_leftWinDown = FALSE;
 static BOOL g_rightWinDown = FALSE;
 
+// Hotkey capture mode (--capture): report any pressed combo via stdout
+static BOOL g_captureMode = FALSE;
+static int g_peakModCount = 0;
+static BOOL g_peakCtrl = FALSE;
+static BOOL g_peakAlt = FALSE;
+static BOOL g_peakShift = FALSE;
+static BOOL g_peakWin = FALSE;
+static BOOL g_captureEmitted = FALSE;
+
+static int CountPressedModifiers(void) {
+    int count = 0;
+    if (g_ctrlDown) count++;
+    if (g_altDown) count++;
+    if (g_shiftDown) count++;
+    if (g_leftWinDown || g_rightWinDown) count++;
+    return count;
+}
+
+static void UpdatePeakModifiers(void) {
+    int count = CountPressedModifiers();
+    if (count > g_peakModCount) {
+        g_peakModCount = count;
+        g_peakCtrl = g_ctrlDown;
+        g_peakAlt = g_altDown;
+        g_peakShift = g_shiftDown;
+        g_peakWin = g_leftWinDown || g_rightWinDown;
+    }
+}
+
+static void FormatPeakHotkey(char* buf, size_t bufSize) {
+    size_t pos = 0;
+    buf[0] = '\0';
+
+    if (g_peakCtrl) {
+        pos += snprintf(buf + pos, bufSize - pos, "%sControl", pos > 0 ? "+" : "");
+    }
+    if (g_peakAlt) {
+        pos += snprintf(buf + pos, bufSize - pos, "%sAlt", pos > 0 ? "+" : "");
+    }
+    if (g_peakShift) {
+        pos += snprintf(buf + pos, bufSize - pos, "%sShift", pos > 0 ? "+" : "");
+    }
+    if (g_peakWin) {
+        pos += snprintf(buf + pos, bufSize - pos, "%sSuper", pos > 0 ? "+" : "");
+    }
+}
+
+static void EmitCapturedHotkey(void) {
+    char buf[128];
+
+    if (g_peakModCount < 2 || g_captureEmitted) {
+        return;
+    }
+
+    FormatPeakHotkey(buf, sizeof(buf));
+    if (buf[0] != '\0') {
+        printf("CAPTURED %s\n", buf);
+        fflush(stdout);
+        g_captureEmitted = TRUE;
+    }
+}
+
+static void ResetCaptureState(void) {
+    if (CountPressedModifiers() == 0) {
+        g_peakModCount = 0;
+        g_peakCtrl = FALSE;
+        g_peakAlt = FALSE;
+        g_peakShift = FALSE;
+        g_peakWin = FALSE;
+        g_captureEmitted = FALSE;
+    }
+}
+
 static BOOL IsCtrlVk(DWORD vkCode) {
     return vkCode == VK_CONTROL || vkCode == VK_LCONTROL || vkCode == VK_RCONTROL;
 }
@@ -196,6 +269,55 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         BOOL isModifierEvent = IsCtrlVk(kbd->vkCode) || IsAltVk(kbd->vkCode) ||
                                IsShiftVk(kbd->vkCode) || IsWinVk(kbd->vkCode);
 
+        if (g_captureMode) {
+            if ((isKeyDown || isKeyUp) && isModifierEvent) {
+                if (isKeyDown) {
+                    UpdateModifierState(kbd->vkCode, TRUE);
+                    SyncModifierState(kbd->vkCode);
+                    UpdatePeakModifiers();
+                    if (g_peakModCount >= 2) {
+                        EmitCapturedHotkey();
+                    }
+                } else {
+                    if (g_peakModCount >= 2) {
+                        EmitCapturedHotkey();
+                    }
+                    UpdateModifierState(kbd->vkCode, FALSE);
+                    SyncModifierState(kbd->vkCode);
+                    ResetCaptureState();
+                }
+            } else if (isKeyDown && !isModifierEvent) {
+                SyncModifierState(kbd->vkCode);
+                char buf[128];
+                size_t pos = 0;
+                buf[0] = '\0';
+
+                if (g_ctrlDown) pos += snprintf(buf + pos, sizeof(buf) - pos, "Control+");
+                if (g_altDown) pos += snprintf(buf + pos, sizeof(buf) - pos, "Alt+");
+                if (g_shiftDown) pos += snprintf(buf + pos, sizeof(buf) - pos, "Shift+");
+                if (g_leftWinDown || g_rightWinDown) pos += snprintf(buf + pos, sizeof(buf) - pos, "Super+");
+
+                const char* keyName = NULL;
+                if (kbd->vkCode == VK_OEM_3) keyName = "`";
+                else if (kbd->vkCode >= 'A' && kbd->vkCode <= 'Z') {
+                    snprintf(buf + pos, sizeof(buf) - pos, "%c", (char)kbd->vkCode);
+                    keyName = buf + pos;
+                } else if (kbd->vkCode >= VK_F1 && kbd->vkCode <= VK_F24) {
+                    snprintf(buf + pos, sizeof(buf) - pos, "F%d", (int)(kbd->vkCode - VK_F1 + 1));
+                    keyName = buf + pos;
+                }
+
+                if (keyName && pos > 0) {
+                    printf("CAPTURED %s\n", buf);
+                    fflush(stdout);
+                } else if (keyName && pos == 0) {
+                    printf("CAPTURED %s\n", keyName);
+                    fflush(stdout);
+                }
+            }
+            return CallNextHookEx(g_hook, nCode, wParam, lParam);
+        }
+
         if ((isKeyDown || isKeyUp) && isModifierEvent) {
             UpdateModifierState(kbd->vkCode, isKeyDown);
             SyncModifierState(kbd->vkCode);
@@ -322,8 +444,9 @@ DWORD ParseCompoundHotkey(const char* hotkey) {
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <key>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <key>|--capture\n", argv[0]);
         fprintf(stderr, "Examples:\n");
+        fprintf(stderr, "  %s --capture                 (hotkey capture mode)\n", argv[0]);
         fprintf(stderr, "  %s `                        (backtick)\n", argv[0]);
         fprintf(stderr, "  %s F8                       (function key F1-F12)\n", argv[0]);
         fprintf(stderr, "  %s F13                      (extended function key F13-F24)\n", argv[0]);
@@ -332,19 +455,23 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    g_targetVk = ParseCompoundHotkey(argv[1]);
-    if (g_targetVk == 0 && (g_requireCtrl || g_requireAlt || g_requireShift || g_requireWin)) {
-        g_useModifiersOnly = TRUE;
-    }
+    if (_stricmp(argv[1], "--capture") == 0) {
+        g_captureMode = TRUE;
+        fprintf(stderr, "Capture mode enabled\n");
+    } else {
+        g_targetVk = ParseCompoundHotkey(argv[1]);
+        if (g_targetVk == 0 && (g_requireCtrl || g_requireAlt || g_requireShift || g_requireWin)) {
+            g_useModifiersOnly = TRUE;
+        }
 
-    if (g_targetVk == 0 && !g_useModifiersOnly) {
-        fprintf(stderr, "Error: Invalid key '%s'\n", argv[1]);
-        return 1;
-    }
+        if (g_targetVk == 0 && !g_useModifiersOnly) {
+            fprintf(stderr, "Error: Invalid key '%s'\n", argv[1]);
+            return 1;
+        }
 
-    // Log what we're listening for
-    fprintf(stderr, "Listening for: %s (VK=0x%02X, Ctrl=%d, Alt=%d, Shift=%d, Win=%d, ModOnly=%d)\n",
-            argv[1], g_targetVk, g_requireCtrl, g_requireAlt, g_requireShift, g_requireWin, g_useModifiersOnly);
+        fprintf(stderr, "Listening for: %s (VK=0x%02X, Ctrl=%d, Alt=%d, Shift=%d, Win=%d, ModOnly=%d)\n",
+                argv[1], g_targetVk, g_requireCtrl, g_requireAlt, g_requireShift, g_requireWin, g_useModifiersOnly);
+    }
 
     // Set up console handler for clean shutdown
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);

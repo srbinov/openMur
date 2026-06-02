@@ -6,6 +6,8 @@ const HyprlandShortcutManager = require("./hyprlandShortcut");
 const KDEShortcutManager = require("./kdeShortcut");
 const { i18nMain } = require("./i18nMain");
 
+const { LOCAL_ONLY } = require("./localOnlyFlag");
+
 // Delay to ensure localStorage is accessible after window load
 const HOTKEY_REGISTRATION_DELAY_MS = 1000;
 
@@ -53,6 +55,23 @@ const MODIFIER_NAMES = new Set([
 function isModifierOnlyHotkey(hotkey) {
   if (!hotkey || !hotkey.includes("+")) return false;
   return hotkey.split("+").every((part) => MODIFIER_NAMES.has(part.toLowerCase()));
+}
+
+function getActivationModeFromEnv() {
+  if (process.env.ACTIVATION_MODE === "push") return "push";
+  if (process.env.ACTIVATION_MODE === "tap") return "tap";
+  return LOCAL_ONLY ? "push" : "tap";
+}
+
+/** Push-to-talk with modifier-only hotkeys needs the Linux evdev listener, not GNOME/KDE shortcuts. */
+function needsLinuxEvdevPushToTalk(hotkey, activationMode = getActivationModeFromEnv()) {
+  return (
+    process.platform === "linux" &&
+    activationMode === "push" &&
+    hotkey &&
+    !isGlobeLikeHotkey(hotkey) &&
+    (isModifierOnlyHotkey(hotkey) || isRightSideModifier(hotkey))
+  );
 }
 
 function isGlobeLikeHotkey(hotkey) {
@@ -393,11 +412,11 @@ class HotkeyManager extends EventEmitter {
         return { success: true, hotkey };
       }
 
-      if (isModifierOnlyHotkey(hotkey) && process.platform === "win32") {
+      if (isModifierOnlyHotkey(hotkey) && (process.platform === "win32" || process.platform === "linux")) {
         slot.hotkey = hotkey;
         slot.accelerator = null;
         debugLogger.log(
-          `[HotkeyManager] Modifier-only "${hotkey}" set - using Windows native listener`
+          `[HotkeyManager] Modifier-only "${hotkey}" set - using native listener`
         );
         return { success: true, hotkey };
       }
@@ -598,6 +617,45 @@ class HotkeyManager extends EventEmitter {
     return false;
   }
 
+  /** Remove GNOME/KDE/Hyprland dictation bindings that would steal modifier-only combos. */
+  async _unregisterStaleDesktopDictationShortcut() {
+    if (process.platform !== "linux") return;
+
+    try {
+      if (GnomeShortcutManager.isGnome()) {
+        const gnome = new GnomeShortcutManager();
+        await gnome.unregisterKeybinding("dictation");
+        gnome.close();
+      }
+    } catch (err) {
+      debugLogger.debug("[HotkeyManager] GNOME dictation unregister skipped", {
+        error: err.message,
+      });
+    }
+
+    try {
+      if (HyprlandShortcutManager.isHyprland()) {
+        const hyprland = new HyprlandShortcutManager();
+        await hyprland.unregisterKeybinding();
+        hyprland.close?.();
+      }
+    } catch (err) {
+      debugLogger.debug("[HotkeyManager] Hyprland dictation unregister skipped", {
+        error: err.message,
+      });
+    }
+
+    try {
+      if (KDEShortcutManager.isKDE()) {
+        const kde = new KDEShortcutManager();
+        await kde.unregisterKeybinding("dictation");
+        kde.close?.();
+      }
+    } catch (err) {
+      debugLogger.debug("[HotkeyManager] KDE dictation unregister skipped", { error: err.message });
+    }
+  }
+
   async initializeHotkey(mainWindow, callback) {
     if (!mainWindow || !callback) {
       throw new Error("mainWindow and callback are required");
@@ -605,6 +663,28 @@ class HotkeyManager extends EventEmitter {
 
     this.mainWindow = mainWindow;
     this.hotkeyCallback = callback;
+
+    const savedHotkey = await this.getSavedHotkey();
+    const useEvdevPushToTalk = needsLinuxEvdevPushToTalk(savedHotkey);
+
+    if (useEvdevPushToTalk) {
+      debugLogger.log(
+        `[HotkeyManager] Push-to-talk "${savedHotkey}" — using Linux evdev listener (skipping desktop shortcuts)`
+      );
+      await this._unregisterStaleDesktopDictationShortcut();
+      if (process.platform === "linux") {
+        globalShortcut.unregisterAll();
+      }
+      const result = this.setupShortcuts(savedHotkey, callback);
+      if (result.success) {
+        this.currentHotkey = savedHotkey;
+        this.notifyActiveHotkey(savedHotkey);
+      } else {
+        await this.loadSavedHotkeyOrDefault(mainWindow, callback);
+      }
+      this.isInitialized = true;
+      return;
+    }
 
     // Try GNOME native shortcuts on any GNOME session (X11 or Wayland).
     // On Wayland: required (globalShortcut/XGrabKey doesn't work globally).
@@ -1010,6 +1090,23 @@ class HotkeyManager extends EventEmitter {
         return { success: false, message: conflict.error, reason: conflict.reason };
       }
 
+      if (needsLinuxEvdevPushToTalk(hotkey)) {
+        await this._unregisterStaleDesktopDictationShortcut();
+        this.useGnome = false;
+        this.useHyprland = false;
+        this.useKDE = false;
+        const result = this.setupShortcuts(hotkey, callback);
+        if (result.success) {
+          this.currentHotkey = hotkey;
+          const saved = await this.saveHotkeyToRenderer(hotkey);
+          if (!saved) {
+            debugLogger.warn("[HotkeyManager] Evdev hotkey set but failed to persist");
+          }
+          return { success: true, message: `Hotkey updated to: ${hotkey}` };
+        }
+        return { success: false, message: result.error };
+      }
+
       if (isMouseButtonHotkey(hotkey)) {
         const result = this.setupShortcuts(hotkey, callback);
         if (result.success) {
@@ -1206,3 +1303,5 @@ module.exports.isGlobeLikeHotkey = isGlobeLikeHotkey;
 module.exports.isModifierOnlyHotkey = isModifierOnlyHotkey;
 module.exports.isRightSideModifier = isRightSideModifier;
 module.exports.isMouseButtonHotkey = isMouseButtonHotkey;
+module.exports.needsLinuxEvdevPushToTalk = needsLinuxEvdevPushToTalk;
+module.exports.getActivationModeFromEnv = getActivationModeFromEnv;

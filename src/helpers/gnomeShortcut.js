@@ -1,23 +1,25 @@
 const { execFileSync } = require("child_process");
 const debugLogger = require("./debugLogger");
+const { getAppBrand } = require("./appBrand");
 
-const DBUS_SERVICE_NAME = "com.openwhispr.App";
-const DBUS_OBJECT_PATH = "/com/openwhispr/App";
-const DBUS_INTERFACE = "com.openwhispr.App";
+const brand = getAppBrand();
+const DBUS_SERVICE_NAME = brand.dbusService;
+const DBUS_OBJECT_PATH = brand.dbusPath;
+const DBUS_INTERFACE = brand.dbusInterface;
 
 // Per-slot gsettings paths and display names
 const SLOT_CONFIG = {
   dictation: {
-    path: "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/openwhispr/",
-    name: "OpenWhispr Toggle",
+    path: `/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/${brand.gsettingsPrefix}/`,
+    name: `${brand.displayName} Toggle`,
   },
   agent: {
-    path: "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/openwhispr-agent/",
-    name: "OpenWhispr Agent",
+    path: `/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/${brand.gsettingsPrefix}-agent/`,
+    name: `${brand.displayName} Agent`,
   },
   meeting: {
-    path: "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/openwhispr-meeting/",
-    name: "OpenWhispr Meeting",
+    path: `/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/${brand.gsettingsPrefix}-meeting/`,
+    name: `${brand.displayName} Meeting`,
   },
 };
 
@@ -25,8 +27,9 @@ const KEYBINDING_SCHEMA = "org.gnome.settings-daemon.plugins.media-keys.custom-k
 
 // Valid pattern for GNOME shortcut format using X11 keysym names (case-sensitive).
 // Modifiers are case-insensitive (GTK normalizes them), keysyms are exact.
+// Modifier-only combos (e.g. <Control><Super>) are supported.
 const VALID_SHORTCUT_PATTERN =
-  /^(<(Control|Alt|Shift|Super)>)*(F([1-9]|1[0-9]|2[0-4])|[a-z0-9]|space|Escape|Tab|BackSpace|grave|Pause|Scroll_Lock|Insert|Delete|Home|End|Page_Up|Page_Down|Up|Down|Left|Right|Return|Print)$/;
+  /^(<(Control|Alt|Shift|Super)>)+((F([1-9]|1[0-9]|2[0-4])|[a-z0-9]|space|Escape|Tab|BackSpace|grave|Pause|Scroll_Lock|Insert|Delete|Home|End|Page_Up|Page_Down|Up|Down|Left|Right|Return|Print)?)$/;
 
 // Map Electron key names (lowercased) to X11 keysym names (case-sensitive).
 // Source: X11/keysymdef.h, lookup via XStringToKeysym(3).
@@ -153,7 +156,7 @@ class GnomeShortcutManager {
   }
 
   _createInterfaceClass(dbusModule) {
-    class OpenWhisprInterface extends dbusModule.interface.Interface {
+    class openMurInterface extends dbusModule.interface.Interface {
       constructor(dictationCallback, agentCallback, meetingCallback) {
         super(DBUS_INTERFACE);
         this._dictationCallback = dictationCallback;
@@ -180,7 +183,7 @@ class GnomeShortcutManager {
       }
     }
 
-    OpenWhisprInterface.configureMembers({
+    openMurInterface.configureMembers({
       methods: {
         Toggle: { inSignature: "", outSignature: "" },
         ToggleAgent: { inSignature: "", outSignature: "" },
@@ -188,7 +191,7 @@ class GnomeShortcutManager {
       },
     });
 
-    return OpenWhisprInterface;
+    return openMurInterface;
   }
 
   static isValidShortcut(shortcut) {
@@ -444,16 +447,25 @@ class GnomeShortcutManager {
       return "";
     }
 
+    const modifierToGnome = (mod) => {
+      const m = mod.toLowerCase();
+      if (m === "commandorcontrol" || m === "control" || m === "ctrl") return "<Control>";
+      if (m === "alt") return "<Alt>";
+      if (m === "shift") return "<Shift>";
+      if (m === "super" || m === "meta" || m === "win") return "<Super>";
+      return "";
+    };
+
+    const isModifierPart = (mod) => modifierToGnome(mod) !== "";
+
+    // Modifier-only combos (e.g. Control+Super → <Control><Super>)
+    if (parts.every(isModifierPart)) {
+      return parts.map(modifierToGnome).filter(Boolean).join("");
+    }
+
     const key = parts.pop();
     const modifiers = parts
-      .map((mod) => {
-        const m = mod.toLowerCase();
-        if (m === "commandorcontrol" || m === "control" || m === "ctrl") return "<Control>";
-        if (m === "alt") return "<Alt>";
-        if (m === "shift") return "<Shift>";
-        if (m === "super" || m === "meta") return "<Super>";
-        return "";
-      })
+      .map((mod) => modifierToGnome(mod))
       .filter(Boolean)
       .join("");
 

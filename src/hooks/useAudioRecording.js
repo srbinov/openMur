@@ -6,6 +6,17 @@ import { playStartCue, playStopCue } from "../utils/dictationCues";
 import { getSettings } from "../stores/settingsStore";
 import { getRecordingErrorTitle, getRecordingErrorDescription } from "../utils/recordingErrors";
 import { isAccessibilitySkipped } from "../utils/permissions";
+import { LOCAL_ONLY } from "../config/localOnlyMode";
+
+function syncDictationPillState(isRecording, isProcessing) {
+  if (!LOCAL_ONLY || !window.electronAPI?.setDictationPillState) return;
+  if (isRecording) {
+    window.electronAPI.setDictationPillState("listening").catch(() => {});
+  } else if (isProcessing) {
+    window.electronAPI.setDictationPillState("processing").catch(() => {});
+  }
+  // Do not set idle here — paste + done animation own the transition back to idle.
+}
 
 export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
@@ -91,6 +102,7 @@ export const useAudioRecording = (toast, options = {}) => {
         setIsRecording(isRecording);
         setIsProcessing(isProcessing);
         setIsStreaming(isStreaming ?? false);
+        syncDictationPillState(isRecording, isProcessing);
         if (!isStreaming) {
           setPartialTranscript("");
         }
@@ -133,12 +145,15 @@ export const useAudioRecording = (toast, options = {}) => {
           }
 
           setTranscript(result.text);
-          window.electronAPI?.completeDictationPreview?.({ text: result.text });
 
           const isStreaming = result.source?.includes("streaming");
           const { autoPasteEnabled, keepTranscriptionInClipboard } = getSettings();
 
+          // Keep pill busy (spinner) from transcription through paste — before any await.
+          window.electronAPI?.setDictationPillState?.("processing").catch(() => {});
+
           if (autoPasteEnabled) {
+            window.electronAPI?.setDictationPillState?.("pasting").catch(() => {});
             const pasteStart = performance.now();
             await audioManagerRef.current.safePaste(result.text, {
               ...(isStreaming ? { fromStreaming: true } : {}),
@@ -158,6 +173,8 @@ export const useAudioRecording = (toast, options = {}) => {
             await navigator.clipboard.writeText(result.text);
           }
 
+          window.electronAPI?.completeDictationPreview?.({ text: result.text });
+
           audioManagerRef.current.saveTranscription(result.text, result.rawText ?? result.text, {
             clientTranscriptionId: result.clientTranscriptionId,
           });
@@ -171,7 +188,7 @@ export const useAudioRecording = (toast, options = {}) => {
           }
 
           // Cloud usage: limit reached after this transcription
-          if (result.source === "openwhispr" && result.limitReached) {
+          if (result.source === "openmur" && result.limitReached) {
             // Notify control panel to show UpgradePrompt dialog
             window.electronAPI?.notifyLimitReached?.({
               wordsUsed: result.wordsUsed,

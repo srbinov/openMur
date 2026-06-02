@@ -1,0 +1,63 @@
+# Builds the LOCAL_ONLY openMur package (deb + AppImage) for GitHub Releases.
+# No API keys in the build — secrets scan runs first.
+name: Release (local dictation)
+
+on:
+  push:
+    tags:
+      - "local-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without v prefix (e.g. 1.7.2)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-local:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install native rollup helpers
+        run: npm install @rollup/rollup-linux-x64-gnu lightningcss-linux-x64-gnu @tailwindcss/oxide-linux-x64-gnu --no-save
+
+      - name: Verify no secrets in source
+        run: npm run check:secrets
+
+      - name: Cache whisper binaries
+        uses: actions/cache@v4
+        with:
+          path: resources/bin
+          key: local-linux-bin-${{ hashFiles('scripts/download-whisper-cpp.js', 'scripts/build-linux-key-listener.js') }}
+
+      - name: Prepare local pack assets
+        run: npm run prepare:local:pack
+
+      - name: Build deb and AppImage
+        run: |
+          npm run sync:icons
+          npm run build:renderer
+          npx cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --linux deb AppImage --config electron-builder.local.json
+
+      - name: Upload artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/openmur-*.deb
+            dist/openmur-*.AppImage
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

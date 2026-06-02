@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { LOCAL_ONLY } from "../config/localOnlyMode";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -242,9 +243,9 @@ function TranscriptionSection({
 
   const transcriptionModes: InferenceModeOption[] = [
     {
-      id: "openwhispr",
-      label: t("settingsPage.transcription.modes.openwhispr"),
-      description: t("settingsPage.transcription.modes.openwhisprDesc"),
+      id: "openmur",
+      label: t("settingsPage.transcription.modes.openmur"),
+      description: t("settingsPage.transcription.modes.openmurDesc"),
       icon: <Cloud className="w-4 h-4" />,
       disabled: !isSignedIn,
       badge: !isSignedIn ? t("common.freeAccountRequired") : undefined,
@@ -270,7 +271,7 @@ function TranscriptionSection({
   ];
 
   const handleTranscriptionModeSelect = (mode: InferenceMode) => {
-    if (mode === "openwhispr" && !isSignedIn) {
+    if (mode === "openmur" && !isSignedIn) {
       startOnboarding();
       return;
     }
@@ -278,10 +279,10 @@ function TranscriptionSection({
     setTranscriptionMode(mode);
     setUseLocalWhisper(mode === "local");
     updateTranscriptionSettings({ useLocalWhisper: mode === "local" });
-    setCloudTranscriptionMode(mode === "openwhispr" ? "openwhispr" : "byok");
+    setCloudTranscriptionMode(mode === "openmur" ? "openmur" : "byok");
 
     const toastKey = {
-      openwhispr: "switchedCloud",
+      openmur: "switchedCloud",
       providers: "switchedProviders",
       local: "switchedLocal",
       "self-hosted": "switchedSelfHosted",
@@ -386,7 +387,7 @@ interface AiModelsSectionProps {
 }
 
 const CLEANUP_MODE_TOAST_KEY: Record<InferenceMode, string> = {
-  openwhispr: "switchedCloud",
+  openmur: "switchedCloud",
   providers: "switchedProviders",
   local: "switchedLocal",
   "self-hosted": "switchedSelfHosted",
@@ -778,8 +779,8 @@ export default function SettingsPage({
   const [isRemovingModels, setIsRemovingModels] = useState(false);
   const cachePathHint =
     typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent)
-      ? "%USERPROFILE%\\.cache\\openwhispr"
-      : "~/.cache/openwhispr";
+      ? "%USERPROFILE%\\.cache\\openmur"
+      : "~/.cache/openmur";
 
   const {
     status: updateStatus,
@@ -1104,7 +1105,9 @@ export default function SettingsPage({
         variant: "destructive",
         duration: 15000,
       });
-      setActivationMode("tap");
+      if (!LOCAL_ONLY) {
+        setActivationMode("tap");
+      }
     });
     return () => cleanup?.();
   }, [toast, t, setActivationMode]);
@@ -1183,7 +1186,7 @@ export default function SettingsPage({
               description: t("settingsPage.developer.removeModels.failedDescription"),
             });
           } else {
-            window.dispatchEvent(new Event("openwhispr-models-cleared"));
+            window.dispatchEvent(new Event("openmur-models-cleared"));
             showAlertDialog({
               title: t("settingsPage.developer.removeModels.successTitle"),
               description: t("settingsPage.developer.removeModels.successDescription"),
@@ -1950,7 +1953,7 @@ export default function SettingsPage({
                       size="sm"
                       className="mt-2 w-full h-6 text-[10px]"
                       onClick={() =>
-                        window.electronAPI?.openExternal?.("https://openwhispr.com/contact-sales")
+                        window.electronAPI?.openExternal?.("https://openmur.com/contact-sales")
                       }
                     >
                       <Mail size={10} />
@@ -2889,7 +2892,7 @@ export default function SettingsPage({
                           }),
                           desc: t("settingsPage.general.waylandPaste.guide.group.step2Desc", {
                             defaultValue:
-                              "Group changes only take effect after a new login session. Log out of your desktop and log back in, then reopen OpenWhispr.",
+                              "Group changes only take effect after a new login session. Log out of your desktop and log back in, then reopen openMur.",
                           }),
                         },
                       ],

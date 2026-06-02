@@ -21,10 +21,10 @@ try {
   // Use the same logic as the database.js file to determine the user data path
   const userDataPath =
     process.platform === "darwin"
-      ? path.join(os.homedir(), "Library", "Application Support", "open-whispr")
+      ? path.join(os.homedir(), "Library", "Application Support", "open-mur")
       : process.platform === "win32"
-      ? path.join(process.env.APPDATA || os.homedir(), "open-whispr")
-      : path.join(os.homedir(), ".config", "open-whispr");
+      ? path.join(process.env.APPDATA || os.homedir(), "open-mur")
+      : path.join(os.homedir(), ".config", "open-mur");
 
   const devDbPath = path.join(userDataPath, "transcriptions-dev.db");
 

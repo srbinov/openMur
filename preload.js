@@ -469,7 +469,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   authGetToken: () => ipcRenderer.invoke("auth-get-token"),
   authSetToken: (token) => ipcRenderer.invoke("auth-set-token", token),
 
-  // OpenWhispr Cloud API
+  // openMur Cloud API
   cloudHealthCheck: () => ipcRenderer.invoke("cloud-health-check"),
   cloudTranscribe: (audioBuffer, opts) => ipcRenderer.invoke("cloud-transcribe", audioBuffer, opts),
   cloudReason: (text, opts) => ipcRenderer.invoke("cloud-reason", text, opts),
@@ -618,6 +618,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("globe-key-released", listener);
   },
 
+  // Native hotkey capture for Windows/Linux (Super/Win key combos)
+  onNativeHotkeyCaptured: (callback) => {
+    const listener = (_event, hotkey) => callback?.(hotkey);
+    ipcRenderer.on("native-hotkey-captured", listener);
+    return () => ipcRenderer.removeListener("native-hotkey-captured", listener);
+  },
+
   // Hotkey registration events (for notifying user when hotkey fails)
   onHotkeyFallbackUsed: (callback) => {
     const listener = (_event, data) => callback?.(data);
@@ -710,8 +717,23 @@ contextBridge.exposeInMainWorld("electronAPI", {
     (callback) => (_event, payload) => callback(payload)
   ),
   onPreviewHide: registerListener("preview-hide", (callback) => () => callback()),
+  onPreviewMinimal: registerListener(
+    "preview-minimal",
+    (callback) => (_event, minimal) => callback(minimal)
+  ),
+  onPreviewState: registerListener(
+    "preview-state",
+    (callback) => (_event, state) => callback(state)
+  ),
+  onPreviewSnippet: registerListener(
+    "preview-snippet",
+    (callback) => (_event, text) => callback(text)
+  ),
   startDictationPreview: (opts) => ipcRenderer.invoke("start-dictation-preview", opts),
   stopDictationPreview: (opts) => ipcRenderer.invoke("stop-dictation-preview", opts),
+  setDictationPillState: (state) => ipcRenderer.invoke("set-dictation-pill-state", state),
+  getLiveDictationPasteState: () => ipcRenderer.invoke("get-live-dictation-paste-state"),
+  finishLiveDictationPaste: () => ipcRenderer.invoke("finish-live-dictation-paste"),
   dismissDictationPreview: () => ipcRenderer.invoke("dismiss-dictation-preview"),
   completeDictationPreview: (payload) => ipcRenderer.invoke("complete-dictation-preview", payload),
   hideDictationPreview: () => ipcRenderer.invoke("hide-dictation-preview"),

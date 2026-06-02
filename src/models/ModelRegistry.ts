@@ -285,7 +285,7 @@ export function getReasoningModelLabel(modelId: string): string {
 
 export function getModelProvider(modelId: string): string {
   if (isCloudCleanupMode()) {
-    return "openwhispr";
+    return "openmur";
   }
 
   const storedProvider = getSettings().cleanupProvider;

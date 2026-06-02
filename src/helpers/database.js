@@ -656,6 +656,45 @@ class DatabaseManager {
     }
   }
 
+  /** Hard-delete local transcriptions older than `retentionMinutes`. Returns deleted row ids. */
+  purgeExpiredTranscriptions(retentionMinutes = 5) {
+    try {
+      if (!this.db) {
+        throw new Error("Database not initialized");
+      }
+
+      const modifier = `-${Math.max(1, Math.round(retentionMinutes))} minutes`;
+      const rows = this.db
+        .prepare(
+          `SELECT id FROM transcriptions
+           WHERE cloud_id IS NULL
+             AND deleted_at IS NULL
+             AND datetime(COALESCE(created_at, timestamp)) < datetime('now', ?)`
+        )
+        .all(modifier);
+
+      if (rows.length === 0) {
+        return { deleted: 0, ids: [], success: true };
+      }
+
+      const deleteStmt = this.db.prepare("DELETE FROM transcriptions WHERE id = ?");
+      const purge = this.db.transaction((ids) => {
+        let deleted = 0;
+        for (const id of ids) {
+          deleted += deleteStmt.run(id).changes;
+        }
+        return deleted;
+      });
+
+      const ids = rows.map((row) => row.id);
+      const deleted = purge(ids);
+      return { deleted, ids, success: true };
+    } catch (error) {
+      debugLogger.error("Error purging expired transcriptions", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
   updateTranscriptionAudio(id, { hasAudio, audioDurationMs, provider, model }) {
     try {
       if (!this.db) throw new Error("Database not initialized");

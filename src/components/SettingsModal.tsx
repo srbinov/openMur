@@ -1,25 +1,14 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Sliders,
-  Mic,
-  Brain,
-  UserCircle,
-  Wrench,
-  Keyboard,
-  CreditCard,
-  Shield,
-  Users,
-} from "lucide-react";
+import { Sliders, Brain, Keyboard, Mic, Shield, Wrench } from "lucide-react";
 import SidebarModal, { type SidebarItem } from "./ui/SidebarModal";
 import SettingsPage, { SettingsSectionType } from "./SettingsPage";
+import LocalSettingsView, { type LocalSettingsTab } from "./LocalSettingsView";
 import { WORKSPACES_ENABLED } from "../lib/features";
+import { LOCAL_ONLY } from "../config/localOnlyMode";
 
 export type { SettingsSectionType };
 
-// The old AI Models sidebar had four items (transcription, meetings,
-// intelligence, agentMode) — they now collapse into two: speechToText + llms.
-// Legacy deep-links land on the matching sub-tab via LEGACY_SUB_TAB.
 const SECTION_ALIASES: Record<string, SettingsSectionType> = {
   aiModels: "llms",
   agentConfig: "llms",
@@ -32,6 +21,15 @@ const SECTION_ALIASES: Record<string, SettingsSectionType> = {
   privacy: "privacyData",
   permissions: "privacyData",
   developer: "system",
+};
+
+const LOCAL_SECTION_ALIASES: Record<string, LocalSettingsTab> = {
+  general: "general",
+  hotkeys: "hotkeys",
+  speechToText: "models",
+  llms: "models",
+  transcription: "models",
+  aiModels: "models",
 };
 
 const LEGACY_SUB_TAB: Record<string, string> = {
@@ -52,33 +50,72 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ open, onOpenChange, initialSection }: SettingsModalProps) {
   const { t } = useTranslation();
-  const sidebarItems: SidebarItem<SettingsSectionType>[] = useMemo(
+
+  const resolveLocalTab = (section: string | undefined): LocalSettingsTab => {
+    if (!section) return "general";
+    return LOCAL_SECTION_ALIASES[section] ?? "general";
+  };
+
+  const resolveSection = (section: string | undefined): SettingsSectionType => {
+    if (!section) return "general";
+    const resolved = (SECTION_ALIASES[section] ?? section) as SettingsSectionType;
+    if (resolved === "workspace" && !WORKSPACES_ENABLED) return "general";
+    if (resolved === "account" || resolved === "plansBilling") return "general";
+    return resolved;
+  };
+
+  const [activeLocalTab, setActiveLocalTab] = useState<LocalSettingsTab>(() =>
+    resolveLocalTab(initialSection)
+  );
+  const [activeSection, setActiveSection] = React.useState<SettingsSectionType>(() =>
+    resolveSection(initialSection)
+  );
+  const [initialSubTab, setInitialSubTab] = useState<string | undefined>(() =>
+    initialSection ? LEGACY_SUB_TAB[initialSection] : undefined
+  );
+  useEffect(() => {
+    if (!open) {
+      setInitialSubTab(undefined);
+      return;
+    }
+    if (!initialSection) return;
+    if (LOCAL_ONLY) {
+      setActiveLocalTab(resolveLocalTab(initialSection));
+    } else {
+      setActiveSection(resolveSection(initialSection));
+      setInitialSubTab(LEGACY_SUB_TAB[initialSection]);
+    }
+  }, [open, initialSection]);
+
+  const localSidebarItems: SidebarItem<LocalSettingsTab>[] = useMemo(
     () => [
       {
-        id: "account",
-        label: t("settingsModal.sections.account.label"),
-        icon: UserCircle,
-        description: t("settingsModal.sections.account.description"),
-        group: t("settingsModal.groups.account"),
+        id: "general",
+        label: t("localSetup.tabs.general"),
+        icon: Sliders,
+        description: t("localSetup.tabs.generalDescription"),
+        group: t("localSetup.sidebarGroup"),
       },
       {
-        id: "plansBilling",
-        label: t("settingsModal.sections.plansBilling.label"),
-        icon: CreditCard,
-        description: t("settingsModal.sections.plansBilling.description"),
-        group: t("settingsModal.groups.account"),
+        id: "models",
+        label: t("localSetup.tabs.models"),
+        icon: Brain,
+        description: t("localSetup.tabs.modelsDescription"),
+        group: t("localSetup.sidebarGroup"),
       },
-      ...(WORKSPACES_ENABLED
-        ? [
-            {
-              id: "workspace" as const,
-              label: t("settingsModal.sections.workspace.label"),
-              icon: Users,
-              description: t("settingsModal.sections.workspace.description"),
-              group: t("settingsModal.groups.account"),
-            },
-          ]
-        : []),
+      {
+        id: "hotkeys",
+        label: t("localSetup.tabs.hotkeys"),
+        icon: Keyboard,
+        description: t("localSetup.tabs.hotkeysDescription"),
+        group: t("localSetup.sidebarGroup"),
+      },
+    ],
+    [t]
+  );
+
+  const sidebarItems: SidebarItem<SettingsSectionType>[] = useMemo(() => {
+    const items: SidebarItem<SettingsSectionType>[] = [
       {
         id: "general",
         label: t("settingsModal.sections.general.label"),
@@ -100,53 +137,50 @@ export default function SettingsModal({ open, onOpenChange, initialSection }: Se
         description: t("settingsModal.sections.speechToText.description"),
         group: t("settingsModal.groups.aiModels"),
       },
-      {
-        id: "llms",
-        label: t("settingsModal.sections.llms.label"),
-        icon: Brain,
-        description: t("settingsModal.sections.llms.description"),
-        group: t("settingsModal.groups.aiModels"),
-      },
-      {
-        id: "privacyData",
-        label: t("settingsModal.sections.privacyData.label"),
-        icon: Shield,
-        description: t("settingsModal.sections.privacyData.description"),
-        group: t("settingsModal.groups.system"),
-      },
-      {
-        id: "system",
-        label: t("settingsModal.sections.system.label"),
-        icon: Wrench,
-        description: t("settingsModal.sections.system.description"),
-        group: t("settingsModal.groups.system"),
-      },
-    ],
-    [t]
-  );
+    ];
 
-  const resolveSection = (section: string | undefined): SettingsSectionType => {
-    if (!section) return "account";
-    const resolved = (SECTION_ALIASES[section] ?? section) as SettingsSectionType;
-    if (resolved === "workspace" && !WORKSPACES_ENABLED) return "account";
-    return resolved;
-  };
+    if (!LOCAL_ONLY) {
+      items.push(
+        {
+          id: "llms",
+          label: t("settingsModal.sections.llms.label"),
+          icon: Brain,
+          description: t("settingsModal.sections.llms.description"),
+          group: t("settingsModal.groups.aiModels"),
+        },
+        {
+          id: "privacyData",
+          label: t("settingsModal.sections.privacyData.label"),
+          icon: Shield,
+          description: t("settingsModal.sections.privacyData.description"),
+          group: t("settingsModal.groups.system"),
+        },
+        {
+          id: "system",
+          label: t("settingsModal.sections.system.label"),
+          icon: Wrench,
+          description: t("settingsModal.sections.system.description"),
+          group: t("settingsModal.groups.system"),
+        }
+      );
+    }
 
-  const [activeSection, setActiveSection] = React.useState<SettingsSectionType>(() =>
-    resolveSection(initialSection)
-  );
-  const [initialSubTab, setInitialSubTab] = useState<string | undefined>(() =>
-    initialSection ? LEGACY_SUB_TAB[initialSection] : undefined
-  );
-  const [prevOpen, setPrevOpen] = useState(open);
+    return items;
+  }, [t]);
 
-  if (open && !prevOpen && initialSection) {
-    setPrevOpen(open);
-    setActiveSection(resolveSection(initialSection));
-    setInitialSubTab(LEGACY_SUB_TAB[initialSection]);
-  } else if (open !== prevOpen) {
-    setPrevOpen(open);
-    if (!open) setInitialSubTab(undefined);
+  if (LOCAL_ONLY) {
+    return (
+      <SidebarModal<LocalSettingsTab>
+        open={open}
+        onOpenChange={onOpenChange}
+        title={t("localSetup.modalTitle")}
+        sidebarItems={localSidebarItems}
+        activeSection={activeLocalTab}
+        onSectionChange={setActiveLocalTab}
+      >
+        <LocalSettingsView activeTab={activeLocalTab} />
+      </SidebarModal>
+    );
   }
 
   const handleSectionChange = (section: SettingsSectionType) => {

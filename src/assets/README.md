@@ -1,6 +1,6 @@
 # Assets Directory
 
-This directory contains app icons and other assets for OpenWhispr.
+This directory contains app icons and other assets for openMur.
 
 ## Required Icons
 
@@ -24,6 +24,9 @@ You can create these icons using:
 - Design tools like Figma, Sketch, or Photoshop
 - Command line tools like ImageMagick
 
-## Placeholder
+## Updating the app icon
 
-Until you add your own icons, the app will use system default icons during development.
+1. Replace `src/helpers/assets/openMurIcon.png` with your artwork.
+2. Run `npm run sync:icons` (also runs automatically via `npm run prepare:local` / `predev`).
+
+This writes `icon.png` (512×512), `icon-256.png`, and `icon-128.png` in this folder. **Local dev and KDE taskbar load `src/assets/icon.png`**, not the 2000px source file.

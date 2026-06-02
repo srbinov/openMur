@@ -35,6 +35,14 @@ static int require_super = 0;
 static int use_modifiers_only = 0;
 static int target_key = 0;
 
+static int capture_mode = 0;
+static int peak_mod_count = 0;
+static int peak_ctrl = 0;
+static int peak_alt = 0;
+static int peak_shift = 0;
+static int peak_super = 0;
+static int capture_emitted = 0;
+
 static unsigned char held_keys[KEY_BITS_SIZE];
 
 static int device_fds[MAX_DEVICES];
@@ -72,6 +80,58 @@ static int is_shift_held(void) {
 
 static int is_super_held(void) {
     return is_key_held(KEY_LEFTMETA) || is_key_held(KEY_RIGHTMETA);
+}
+
+static int count_modifiers(void) {
+    int count = 0;
+    if (is_ctrl_held()) count++;
+    if (is_alt_held()) count++;
+    if (is_shift_held()) count++;
+    if (is_super_held()) count++;
+    return count;
+}
+
+static void update_peak_modifiers(void) {
+    int count = count_modifiers();
+    if (count > peak_mod_count) {
+        peak_mod_count = count;
+        peak_ctrl = is_ctrl_held();
+        peak_alt = is_alt_held();
+        peak_shift = is_shift_held();
+        peak_super = is_super_held();
+    }
+}
+
+static void emit_captured_hotkey(void) {
+    char buf[128];
+    size_t pos = 0;
+
+    if (peak_mod_count < 2 || capture_emitted) {
+        return;
+    }
+
+    buf[0] = '\0';
+    if (peak_ctrl) pos += snprintf(buf + pos, sizeof(buf) - pos, "%sControl", pos > 0 ? "+" : "");
+    if (peak_alt) pos += snprintf(buf + pos, sizeof(buf) - pos, "%sAlt", pos > 0 ? "+" : "");
+    if (peak_shift) pos += snprintf(buf + pos, sizeof(buf) - pos, "%sShift", pos > 0 ? "+" : "");
+    if (peak_super) pos += snprintf(buf + pos, sizeof(buf) - pos, "%sSuper", pos > 0 ? "+" : "");
+
+    if (buf[0] != '\0') {
+        printf("CAPTURED %s\n", buf);
+        fflush(stdout);
+        capture_emitted = 1;
+    }
+}
+
+static void reset_capture_state(void) {
+    if (count_modifiers() == 0) {
+        peak_mod_count = 0;
+        peak_ctrl = 0;
+        peak_alt = 0;
+        peak_shift = 0;
+        peak_super = 0;
+        capture_emitted = 0;
+    }
 }
 
 static int modifiers_satisfied(void) {
@@ -345,6 +405,23 @@ static void handle_key_event(int code, int value) {
     int pressed = (value == 1);
     set_key(code, pressed);
 
+    if (capture_mode) {
+        if (is_modifier_code(code)) {
+            if (pressed) {
+                update_peak_modifiers();
+                if (peak_mod_count >= 2) {
+                    emit_captured_hotkey();
+                }
+            } else {
+                if (peak_mod_count >= 2) {
+                    emit_captured_hotkey();
+                }
+                reset_capture_state();
+            }
+        }
+        return;
+    }
+
     if (hotkey_active && !pressed && is_required_modifier(code) && !modifiers_satisfied()) {
         emit_key_up();
         return;
@@ -368,8 +445,9 @@ static void handle_key_event(int code, int value) {
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <key>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <key>|--capture\n", argv[0]);
         fprintf(stderr, "Examples:\n");
+        fprintf(stderr, "  %s --capture                 (hotkey capture mode)\n", argv[0]);
         fprintf(stderr, "  %s `                        (backtick)\n", argv[0]);
         fprintf(stderr, "  %s F8                       (function key)\n", argv[0]);
         fprintf(stderr, "  %s CommandOrControl+F11     (with modifier)\n", argv[0]);
@@ -378,15 +456,20 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    parse_hotkey(argv[1]);
+    if (strcasecmp(argv[1], "--capture") == 0) {
+        capture_mode = 1;
+        fprintf(stderr, "Capture mode enabled\n");
+    } else {
+        parse_hotkey(argv[1]);
 
-    if (target_key == 0 && !use_modifiers_only) {
-        fprintf(stderr, "Error: unrecognized key in '%s'\n", argv[1]);
-        return 1;
+        if (target_key == 0 && !use_modifiers_only) {
+            fprintf(stderr, "Error: unrecognized key in '%s'\n", argv[1]);
+            return 1;
+        }
+
+        fprintf(stderr, "Listening for: %s (code=%d, ctrl=%d, alt=%d, shift=%d, super=%d, mod_only=%d)\n",
+                argv[1], target_key, require_ctrl, require_alt, require_shift, require_super, use_modifiers_only);
     }
-
-    fprintf(stderr, "Listening for: %s (code=%d, ctrl=%d, alt=%d, shift=%d, super=%d, mod_only=%d)\n",
-            argv[1], target_key, require_ctrl, require_alt, require_shift, require_super, use_modifiers_only);
 
     struct sigaction sa = { .sa_handler = signal_handler, .sa_flags = 0 };
     sigemptyset(&sa.sa_mask);

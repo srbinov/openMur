@@ -284,7 +284,7 @@ class ReasoningService extends BaseReasoningService {
     const isLanCleanup = !!config.lanUrl || this.isLanCleanupMode();
     const providerId = isLanCleanup ? "lan" : config.provider || getModelProvider(trimmedModel);
 
-    if (!trimmedModel && providerId !== "openwhispr" && providerId !== "lan") {
+    if (!trimmedModel && providerId !== "openmur" && providerId !== "lan") {
       throw new Error("No reasoning model selected");
     }
 

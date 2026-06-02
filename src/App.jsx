@@ -124,6 +124,15 @@ export default function App() {
       });
     });
 
+    const unsubscribeLinuxPtt = window.electronAPI?.onLinuxPttPermissionDenied?.(() => {
+      toast({
+        title: t("settingsPage.general.hotkey.linuxPttPermissionTitle"),
+        description: t("settingsPage.general.hotkey.linuxPttPermissionDescription"),
+        variant: "destructive",
+        duration: 20000,
+      });
+    });
+
     const unsubscribeCorrections = window.electronAPI?.onCorrectionsLearned?.((words) => {
       if (words && words.length > 0) {
         const wordList = words.map((w) => `\u201c${w}\u201d`).join(", ");
@@ -160,6 +169,7 @@ export default function App() {
     return () => {
       unsubscribeFallback?.();
       unsubscribeFailed?.();
+      unsubscribeLinuxPtt?.();
       unsubscribeCorrections?.();
     };
   }, [toast, dismiss, t]);

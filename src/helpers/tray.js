@@ -2,7 +2,12 @@ const { Tray, Menu, nativeImage, app } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const debugLogger = require("./debugLogger");
+const { loadOpenMurTrayIcon, resolveOpenMurIconPath } = require("./openMurIcon");
 const { i18nMain } = require("./i18nMain");
+const { LOCAL_ONLY } = require("./localOnlyFlag");
+const { getAppBrand } = require("./appBrand");
+
+const APP_BRAND = getAppBrand();
 
 class TrayManager {
   constructor() {
@@ -131,6 +136,16 @@ class TrayManager {
     const platform = process.platform;
     const isDevelopment = process.env.NODE_ENV === "development";
 
+    const openMurTrayIcon = loadOpenMurTrayIcon();
+    if (openMurTrayIcon && !openMurTrayIcon.isEmpty()) {
+      debugLogger.debug(
+        "Using openMur tray icon",
+        { path: resolveOpenMurIconPath() },
+        "tray"
+      );
+      return openMurTrayIcon;
+    }
+
     const candidatePaths = [];
 
     if (platform === "darwin") {
@@ -253,7 +268,7 @@ class TrayManager {
       },
       { type: "separator" },
       {
-        label: i18nMain.t("tray.quit"),
+        label: LOCAL_ONLY ? `Quit ${APP_BRAND.displayName}` : i18nMain.t("tray.quit"),
         click: () => {
           debugLogger.info("Quitting app via tray menu", undefined, "tray");
           app.quit();
@@ -266,7 +281,9 @@ class TrayManager {
     if (!this.tray) return;
 
     const contextMenu = Menu.buildFromTemplate(this.buildContextMenuTemplate());
-    this.tray.setToolTip(i18nMain.t("tray.tooltip"));
+    this.tray.setToolTip(
+      LOCAL_ONLY ? `${APP_BRAND.displayName} — voice dictation` : i18nMain.t("tray.tooltip")
+    );
     this.tray.setContextMenu(contextMenu);
   }
 

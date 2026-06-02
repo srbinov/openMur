@@ -1,6 +1,6 @@
 export type LocalTranscriptionProvider = "whisper" | "nvidia";
 
-export type InferenceMode = "openwhispr" | "providers" | "local" | "self-hosted" | "enterprise";
+export type InferenceMode = "openmur" | "providers" | "local" | "self-hosted" | "enterprise";
 
 export type SelfHostedType = "openai-compatible" | "lan";
 
@@ -939,6 +939,9 @@ declare global {
       onGlobeKeyPressed?: (callback: () => void) => () => void;
       onGlobeKeyReleased?: (callback: () => void) => () => void;
 
+      // Native hotkey capture for Windows/Linux (Super/Win key combos)
+      onNativeHotkeyCaptured?: (callback: (hotkey: string) => void) => () => void;
+
       // Hotkey registration events
       onHotkeyFallbackUsed?: (
         callback: (data: { original: string; fallback: string }) => void
@@ -1079,7 +1082,7 @@ declare global {
       authGetToken?: () => Promise<string | null>;
       authSetToken?: (token: string) => Promise<void>;
 
-      // OpenWhispr Cloud API
+      // openMur Cloud API
       cloudTranscribe?: (
         audioBuffer: ArrayBuffer,
         opts: { language?: string; prompt?: string; useCase?: string; diarization?: boolean }
@@ -1674,11 +1677,11 @@ declare global {
       // Dictation realtime streaming
       dictationRealtimeWarmup?: (options: {
         model?: string;
-        mode?: "byok" | "openwhispr";
+        mode?: "byok" | "openmur";
       }) => Promise<{ success: boolean; error?: string }>;
       dictationRealtimeStart?: (options: {
         model?: string;
-        mode?: "byok" | "openwhispr";
+        mode?: "byok" | "openmur";
       }) => Promise<{ success: boolean; error?: string }>;
       dictationRealtimeSend?: (buffer: ArrayBuffer) => void;
       dictationRealtimeStop?: () => Promise<{ success: boolean; text: string }>;
@@ -1764,6 +1767,7 @@ declare global {
       updateNotificationReady?: () => Promise<void>;
       updateNotificationRespond?: (action: string) => Promise<{ success: boolean }>;
       onPreviewText?: (callback: (text: string) => void) => () => void;
+      onPreviewMinimal?: (callback: (minimal: boolean) => void) => () => void;
       onPreviewAppend?: (callback: (text: string) => void) => () => void;
       onPreviewHold?: (callback: (payload: { showCleanup: boolean }) => void) => () => void;
       onPreviewResult?: (callback: (payload: { text: string }) => void) => () => void;
@@ -1774,6 +1778,11 @@ declare global {
         language?: string;
       }) => Promise<{ success: boolean }>;
       stopDictationPreview?: (opts?: { showCleanup?: boolean }) => Promise<{ success: boolean }>;
+      setDictationPillState?: (
+        state: "idle" | "listening" | "processing" | "pasting" | "done"
+      ) => Promise<{ success: boolean; error?: string }>;
+      onPreviewState?: (callback: (state: string) => void) => () => void;
+      onPreviewSnippet?: (callback: (text: string) => void) => () => void;
       dismissDictationPreview?: () => Promise<{ success: boolean }>;
       completeDictationPreview?: (payload: { text?: string }) => Promise<{ success: boolean }>;
       hideDictationPreview?: () => Promise<{ success: boolean }>;

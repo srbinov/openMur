@@ -63,9 +63,9 @@ export function MeetingTranscriptionPanel() {
 
   const transcriptionModes: InferenceModeOption[] = [
     {
-      id: "openwhispr",
-      label: t("settingsPage.transcription.modes.openwhispr"),
-      description: t("settingsPage.transcription.modes.openwhisprDesc"),
+      id: "openmur",
+      label: t("settingsPage.transcription.modes.openmur"),
+      description: t("settingsPage.transcription.modes.openmurDesc"),
       icon: <Cloud className="w-4 h-4" />,
       disabled: !isSignedIn,
       badge: !isSignedIn ? t("common.freeAccountRequired") : undefined,
@@ -91,14 +91,14 @@ export function MeetingTranscriptionPanel() {
   ];
 
   const handleTranscriptionModeSelect = (mode: InferenceMode) => {
-    if (mode === "openwhispr" && !isSignedIn) {
+    if (mode === "openmur" && !isSignedIn) {
       startOnboarding();
       return;
     }
     if (mode === meetingTranscriptionMode) return;
     setMeetingTranscriptionMode(mode);
     setMeetingUseLocalWhisper(mode === "local");
-    setMeetingCloudTranscriptionMode(mode === "openwhispr" ? "openwhispr" : "byok");
+    setMeetingCloudTranscriptionMode(mode === "openmur" ? "openmur" : "byok");
   };
 
   const handleLocalTranscriptionModelSelect = useCallback(

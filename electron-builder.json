@@ -1,10 +1,10 @@
 {
-  "appId": "com.gizmolabs.openwhispr",
+  "appId": "com.gizmolabs.openmur",
   "afterPack": "scripts/afterPack.js",
-  "productName": "OpenWhispr",
+  "productName": "openMur",
   "protocols": {
-    "name": "OpenWhispr Protocol",
-    "schemes": ["openwhispr"]
+    "name": "openMur Protocol",
+    "schemes": ["openmur"]
   },
   "directories": {
     "output": "dist"
@@ -143,10 +143,10 @@
     ],
     "extendInfo": {
       "LSUIElement": false,
-      "CFBundleIconName": "openwhispr",
-      "NSMicrophoneUsageDescription": "OpenWhispr uses the microphone to capture your voice for transcription.",
-      "NSAudioCaptureUsageDescription": "OpenWhispr uses system audio to capture other participants' audio from calls and meetings.",
-      "NSAccessibilityUsageDescription": "OpenWhispr needs accessibility permissions to paste transcribed text into other applications."
+      "CFBundleIconName": "openmur",
+      "NSMicrophoneUsageDescription": "openMur uses the microphone to capture your voice for transcription.",
+      "NSAudioCaptureUsageDescription": "openMur uses system audio to capture other participants' audio from calls and meetings.",
+      "NSAccessibilityUsageDescription": "openMur needs accessibility permissions to paste transcribed text into other applications."
     }
   },
   "win": {
@@ -154,8 +154,8 @@
     "icon": "src/assets/icon.ico",
     "azureSignOptions": {
       "endpoint": "https://eus.codesigning.azure.net/",
-      "certificateProfileName": "openwhispr-release",
-      "codeSigningAccountName": "OpenWhispr",
+      "certificateProfileName": "openmur-release",
+      "codeSigningAccountName": "openMur",
       "publisherName": "CN=Gizmo Labs Inc., O=Gizmo Labs Inc., L=Wilmington, S=Delaware, C=US"
     },
     "extraResources": [
@@ -194,20 +194,7 @@
     "afterInstall": "resources/linux/after-install.sh",
     "afterRemove": "resources/linux/after-remove.sh",
     "depends": ["ydotool"],
-    "fpm": [
-      "--deb-recommends",
-      "ydotoold",
-      "--deb-suggests",
-      "xdotool",
-      "--deb-suggests",
-      "wtype",
-      "--deb-recommends",
-      "wl-clipboard",
-      "--deb-recommends",
-      "xclip",
-      "--deb-suggests",
-      "xsel"
-    ]
+    "recommends": ["ydotoold", "xdotool", "wtype", "wl-clipboard", "xclip", "xsel"]
   },
   "rpm": {
     "fpm": [
@@ -237,7 +224,7 @@
     "include": "resources/nsis/cleanup-models.nsh"
   },
   "dmg": {
-    "title": "OpenWhispr",
+    "title": "openMur",
     "icon": "src/assets/icon.icns",
     "window": {
       "width": 540,
@@ -246,8 +233,8 @@
   },
   "publish": {
     "provider": "github",
-    "owner": "OpenWhispr",
-    "repo": "openwhispr",
+    "owner": "openMur",
+    "repo": "openmur",
     "private": false,
     "releaseType": "draft"
   }

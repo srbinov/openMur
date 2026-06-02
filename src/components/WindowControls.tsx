@@ -1,9 +1,51 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "./ui/button";
-import { Minus, Square, X, Copy } from "lucide-react";
+import { cn } from "./lib/utils";
 
-export default function WindowControls() {
+function TrafficLightButton({
+  colorClass,
+  label,
+  onClick,
+  symbol,
+}: {
+  colorClass: string;
+  label: string;
+  onClick: () => void;
+  symbol: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        "relative flex h-4 w-4 shrink-0 items-center justify-center rounded-full",
+        "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.14)] transition-[filter,transform] duration-150",
+        "hover:brightness-[0.92] active:scale-95",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1",
+        colorClass
+      )}
+    >
+      <span
+        className={cn(
+          "pointer-events-none select-none text-[11px] font-bold leading-none text-black/55",
+          "opacity-0 transition-opacity duration-150",
+          "group-hover/traffic:opacity-100"
+        )}
+        aria-hidden
+      >
+        {symbol}
+      </span>
+    </button>
+  );
+}
+
+interface WindowControlsProps {
+  className?: string;
+}
+
+export default function WindowControls({ className }: WindowControlsProps) {
   const { t } = useTranslation();
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -47,34 +89,30 @@ export default function WindowControls() {
   };
 
   return (
-    <div className="flex items-center gap-1 pointer-events-auto">
-      <Button
-        variant="ghost"
-        size="icon"
+    <div
+      className={cn(
+        "group/traffic flex items-center gap-2 pointer-events-auto",
+        className
+      )}
+    >
+      <TrafficLightButton
+        colorClass="bg-[#FFBD2E]"
+        label={t("windowControls.minimize")}
         onClick={handleMinimize}
-        title={t("windowControls.minimize")}
-        className="h-8 w-8"
-      >
-        <Minus size={14} />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
+        symbol="−"
+      />
+      <TrafficLightButton
+        colorClass="bg-[#28C840]"
+        label={isMaximized ? t("windowControls.restore") : t("windowControls.maximize")}
         onClick={handleMaximize}
-        title={isMaximized ? t("windowControls.restore") : t("windowControls.maximize")}
-        className="h-8 w-8"
-      >
-        {isMaximized ? <Copy size={14} /> : <Square size={12} />}
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
+        symbol={isMaximized ? "⤢" : "+"}
+      />
+      <TrafficLightButton
+        colorClass="bg-[#FF5F57]"
+        label={t("windowControls.close")}
         onClick={handleClose}
-        className="h-8 w-8 hover:text-destructive hover:bg-destructive/10"
-        title={t("windowControls.close")}
-      >
-        <X size={14} />
-      </Button>
+        symbol="×"
+      />
     </div>
   );
 }

@@ -6,6 +6,8 @@ const debugLogger = require("./debugLogger");
 const { normalizeUiLanguage } = require("./i18nMain");
 const secretCrypto = require("./secretCrypto");
 
+const { LOCAL_ONLY } = require("./localOnlyFlag");
+
 const SECRET_KEYS = [
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
@@ -84,6 +86,15 @@ class EnvironmentManager {
           require("dotenv").config({ path: envPath });
         }
       } catch {}
+    }
+
+    if (LOCAL_ONLY) {
+      process.env.ACTIVATION_MODE = "push";
+      process.env.LOCAL_TRANSCRIPTION_PROVIDER =
+        process.env.LOCAL_TRANSCRIPTION_PROVIDER || "whisper";
+      process.env.LOCAL_WHISPER_MODEL = process.env.LOCAL_WHISPER_MODEL || "base";
+      process.env.FLOATING_ICON_AUTO_HIDE = "true";
+      process.env.START_MINIMIZED = "false";
     }
   }
 
@@ -216,7 +227,7 @@ class EnvironmentManager {
     // otherwise a partial-migration recovery can lose unencrypted secrets.
     const stripSecrets =
       this._encryptionAvailable() && fs.existsSync(this._getMigrationSentinelPath());
-    let envContent = "# OpenWhispr Environment Variables\n";
+    let envContent = "# openMur Environment Variables\n";
     for (const key of PERSISTED_KEYS) {
       if (stripSecrets && SECRET_KEY_SET.has(key)) continue;
       if (process.env[key]) {
@@ -435,7 +446,9 @@ class EnvironmentManager {
 
   getActivationMode() {
     const mode = this._getKey("ACTIVATION_MODE");
-    return mode === "push" ? "push" : "tap";
+    if (mode === "push") return "push";
+    if (mode === "tap") return "tap";
+    return LOCAL_ONLY ? "push" : "tap";
   }
 
   saveActivationMode(mode) {
@@ -446,6 +459,7 @@ class EnvironmentManager {
   }
 
   getFloatingIconAutoHide() {
+    if (LOCAL_ONLY) return true;
     return this._getKey("FLOATING_ICON_AUTO_HIDE") === "true";
   }
 

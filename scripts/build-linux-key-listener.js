@@ -114,3 +114,9 @@ try {
 }
 
 log(`Successfully built Linux key listener binary (${targetArch}).`);
+log(
+  "Push-to-talk requires keyboard access. If hold-to-talk fails, run:\n" +
+    "  sudo usermod -aG input $USER   # then log out and back in\n" +
+    "  # or: sudo setcap cap_evdev=+ep " +
+    outputBinary
+);

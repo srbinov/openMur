@@ -15,6 +15,7 @@ import { shouldSkipTranscriptionApiKey } from "./transcriptionAuth";
 import { detectAgentName } from "../config/agentDetection";
 import { resolvePrompt } from "../config/prompts";
 import { syncService } from "../services/SyncService.js";
+import { LOCAL_ONLY } from "../config/localOnlyMode";
 
 const REASONING_CACHE_TTL = 30000; // 30 seconds
 const REALTIME_MODELS = new Set(["gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
@@ -434,26 +435,30 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         parakeetModel,
       } = getSettings();
       if (showTranscriptionPreview && useLocalWhisper) {
-        try {
-          this._previewAudioContext = new AudioContext({ sampleRate: 16000 });
-          this._previewSource = this._previewAudioContext.createMediaStreamSource(micStream);
-          await this._previewAudioContext.audioWorklet.addModule(this.getWorkletBlobUrl());
-
-          this._previewProcessor = new AudioWorkletNode(
-            this._previewAudioContext,
-            "pcm-streaming-processor"
-          );
-          this._previewProcessor.port.onmessage = (event) => {
-            window.electronAPI?.sendDictationPreviewAudio?.(event.data);
-          };
-          this._previewSource.connect(this._previewProcessor);
-
-          const provider = localTranscriptionProvider === "nvidia" ? "nvidia" : "whisper";
-          const model = provider === "nvidia" ? parakeetModel : whisperModel;
-          const language = getBaseLanguageCode(getSettings().preferredLanguage);
+        const provider = localTranscriptionProvider === "nvidia" ? "nvidia" : "whisper";
+        const model = provider === "nvidia" ? parakeetModel : whisperModel;
+        const language = getBaseLanguageCode(getSettings().preferredLanguage);
+        if (LOCAL_ONLY) {
           window.electronAPI?.startDictationPreview?.({ provider, model, language });
-        } catch (e) {
-          logger.warn("Preview worklet setup failed", { error: e.message }, "audio");
+        } else {
+          try {
+            this._previewAudioContext = new AudioContext({ sampleRate: 16000 });
+            this._previewSource = this._previewAudioContext.createMediaStreamSource(micStream);
+            await this._previewAudioContext.audioWorklet.addModule(this.getWorkletBlobUrl());
+
+            this._previewProcessor = new AudioWorkletNode(
+              this._previewAudioContext,
+              "pcm-streaming-processor"
+            );
+            this._previewProcessor.port.onmessage = (event) => {
+              window.electronAPI?.sendDictationPreviewAudio?.(event.data);
+            };
+            this._previewSource.connect(this._previewProcessor);
+
+            window.electronAPI?.startDictationPreview?.({ provider, model, language });
+          } catch (e) {
+            logger.warn("Preview worklet setup failed", { error: e.message }, "audio");
+          }
         }
       }
 
@@ -554,46 +559,25 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
 
     try {
-      const useLocalWhisper = settings.useLocalWhisper;
-      const localProvider = settings.localTranscriptionProvider;
-      const whisperModel = settings.whisperModel;
+      const useLocalWhisper = true;
+      const localProvider = settings.localTranscriptionProvider || "whisper";
+      const whisperModel = settings.whisperModel || "base";
       const parakeetModel = settings.parakeetModel || "parakeet-tdt-0.6b-v3";
 
-      const cloudTranscriptionMode = settings.cloudTranscriptionMode;
-      const isSignedIn = settings.isSignedIn;
-
-      const isOpenWhisprCloudMode = !useLocalWhisper && cloudTranscriptionMode === "openwhispr";
-      const useCloud = isOpenWhisprCloudMode && isSignedIn;
       logger.debug(
-        "Transcription routing",
-        { useLocalWhisper, useCloud, isSignedIn, cloudTranscriptionMode },
+        "Transcription routing (local-only)",
+        { useLocalWhisper, localProvider, whisperModel },
         "transcription"
       );
 
       let result;
       let activeModel;
-      if (useLocalWhisper) {
-        if (localProvider === "nvidia") {
-          activeModel = parakeetModel;
-          result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
-        } else {
-          activeModel = whisperModel;
-          result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
-        }
-      } else if (isOpenWhisprCloudMode) {
-        if (!isSignedIn) {
-          const err = new Error(
-            "OpenWhispr Cloud requires sign-in. Please sign in again or switch to BYOK mode."
-          );
-          err.code = "AUTH_REQUIRED";
-          err.messageKey = "hooks.audioRecording.errorDescriptions.sessionExpired";
-          throw err;
-        }
-        activeModel = "openwhispr-cloud";
-        result = await this.processWithOpenWhisprCloud(audioBlob, metadata);
+      if (localProvider === "nvidia") {
+        activeModel = parakeetModel;
+        result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
       } else {
-        activeModel = this.getTranscriptionModel();
-        result = await this.processWithOpenAIAPI(audioBlob, metadata);
+        activeModel = whisperModel;
+        result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
       }
 
       if (!this.isProcessing) {
@@ -604,13 +588,15 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         durationMs: metadata?.durationSeconds
           ? Math.round(metadata.durationSeconds * 1000)
           : Math.round(performance.now() - pipelineStart),
-        provider: result?.source || (useLocalWhisper ? localProvider : "cloud"),
+        provider: result?.source || localProvider,
         model: activeModel || null,
       };
 
-      this.onTranscriptionComplete?.(result);
+      if (this.onTranscriptionComplete) {
+        await this.onTranscriptionComplete(result);
+      }
 
-      if (result?.source === "openwhispr") {
+      if (result?.source === "openmur") {
         window.dispatchEvent(new Event("usage-changed"));
       }
 
@@ -714,6 +700,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       if (result.success && result.text) {
         const rawText = result.text;
+        if (LOCAL_ONLY) {
+          return { success: true, text: rawText.trim(), rawText, source: "local", timings };
+        }
         const reasoningStart = performance.now();
         const text = await this.processTranscription(result.text, "local");
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
@@ -1282,7 +1271,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return result;
   }
 
-  async processWithOpenWhisprCloud(audioBlob, metadata = {}) {
+  async processWithOpenMurCloud(audioBlob, metadata = {}) {
     if (!navigator.onLine) {
       const err = new Error("You're offline. Cloud transcription requires an internet connection.");
       err.code = "OFFLINE";
@@ -1299,8 +1288,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const audioFormat = audioBlob.type;
     const opts = {};
     if (language) opts.language = language;
-    const cleanupCloudMode = settings.cleanupCloudMode || "openwhispr";
-    if (settings.useCleanupModel && !this.skipReasoning && cleanupCloudMode === "openwhispr") {
+    const cleanupCloudMode = settings.cleanupCloudMode || "openmur";
+    if (settings.useCleanupModel && !this.skipReasoning && cleanupCloudMode === "openmur") {
       opts.sendLogs = "false";
     }
 
@@ -1326,7 +1315,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const reasoningStart = performance.now();
       const agentName = localStorage.getItem("agentName") || null;
       const route = resolveReasoningRoute(processedText, settings, agentName);
-      const cleanupCloudMode = settings.cleanupCloudMode || "openwhispr";
+      const cleanupCloudMode = settings.cleanupCloudMode || "openmur";
 
       if (route.kind === "agent") {
         const reasoned = await this.processWithReasoningModel(
@@ -1336,7 +1325,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           route.config
         );
         if (reasoned) processedText = reasoned;
-      } else if (route.kind === "cleanup" && cleanupCloudMode === "openwhispr") {
+      } else if (route.kind === "cleanup" && cleanupCloudMode === "openmur") {
         const reasonResult = await withSessionRefresh(async () => {
           const res = await window.electronAPI.cloudReason(processedText, {
             agentName,
@@ -1383,7 +1372,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       success: true,
       text: processedText,
       rawText,
-      source: "openwhispr",
+      source: "openmur",
       timings,
       limitReached: result.limitReached,
       wordsUsed: result.wordsUsed,
@@ -1949,23 +1938,27 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const result = await window.electronAPI.saveTranscription(text, rawText, {
         clientTranscriptionId,
       });
-      if (result?.id) syncService.debouncedPush("transcription", result.id);
-
-      // Save audio if we have a captured blob and the transcription was saved successfully
-      if (result?.id && this.lastAudioBlob) {
-        try {
-          const arrayBuffer = await this.lastAudioBlob.arrayBuffer();
-          await window.electronAPI.saveTranscriptionAudio(
-            result.id,
-            arrayBuffer,
-            this.lastAudioMetadata
-          );
-        } catch (audioErr) {
-          // Non-blocking: transcription is saved even if audio save fails
-          logger.warn("Failed to save transcription audio", { error: audioErr.message }, "audio");
+      if (result?.id) {
+        if (!LOCAL_ONLY) {
+          syncService.debouncedPush("transcription", result.id);
         }
-        this.lastAudioBlob = null;
-        this.lastAudioMetadata = null;
+
+        // Save audio if we have a captured blob and the transcription was saved successfully
+        if (this.lastAudioBlob && !LOCAL_ONLY && getSettings().audioRetentionEnabled) {
+          try {
+            const arrayBuffer = await this.lastAudioBlob.arrayBuffer();
+            await window.electronAPI.saveTranscriptionAudio(
+              result.id,
+              arrayBuffer,
+              this.lastAudioMetadata
+            );
+          } catch (audioErr) {
+            // Non-blocking: transcription is saved even if audio save fails
+            logger.warn("Failed to save transcription audio", { error: audioErr.message }, "audio");
+          }
+          this.lastAudioBlob = null;
+          this.lastAudioMetadata = null;
+        }
       }
 
       return true;
@@ -2047,11 +2040,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // Realtime WS is OpenAI-only — other providers fall through to HTTP.
       if ((s.cloudTranscriptionProvider || "openai") !== "openai") return false;
       if (s.cloudTranscriptionMode === "byok") return !!s.openaiApiKey;
-      if (s.cloudTranscriptionMode === "openwhispr") return !!(isSignedInOverride ?? s.isSignedIn);
+      if (s.cloudTranscriptionMode === "openmur") return !!(isSignedInOverride ?? s.isSignedIn);
       return false;
     }
 
-    if (s.cloudTranscriptionMode !== "openwhispr" || !(isSignedInOverride ?? s.isSignedIn)) {
+    if (s.cloudTranscriptionMode !== "openmur" || !(isSignedInOverride ?? s.isSignedIn)) {
       return false;
     }
     if (this.context === "notes") {
@@ -2082,7 +2075,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             language: warmupLang && warmupLang !== "auto" ? warmupLang : undefined,
             keyterms: this.getKeyterms(),
             model: cloudTranscriptionModel,
-            mode: cloudTranscriptionMode === "byok" ? "byok" : "openwhispr",
+            mode: cloudTranscriptionMode === "byok" ? "byok" : "openmur",
           });
           // Throw error to trigger retry if AUTH_EXPIRED
           if (!res.success && res.code) {
@@ -2304,7 +2297,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           language: preferredLang && preferredLang !== "auto" ? preferredLang : undefined,
           keyterms: this.getKeyterms(),
           model: cloudTranscriptionModel,
-          mode: cloudTranscriptionMode === "byok" ? "byok" : "openwhispr",
+          mode: cloudTranscriptionMode === "byok" ? "byok" : "openmur",
         });
 
         if (!res.success) {
@@ -2381,7 +2374,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       } else if (error.code === "AUTH_EXPIRED" || error.code === "AUTH_REQUIRED") {
         errorTitle = "Sign-in Required";
         errorDescription =
-          "Your OpenWhispr Cloud session is unavailable. Please sign in again from Settings.";
+          "Your openMur Cloud session is unavailable. Please sign in again from Settings.";
       } else if (error.code === "NETWORK_ERROR") {
         errorTitle = "streaming.errors.cloudUnreachable.title";
         errorDescription = error.messageKey || "streaming.errors.cloudUnreachable.generic";
@@ -2528,7 +2521,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const reasoningStart = performance.now();
       const agentName = localStorage.getItem("agentName") || null;
       const route = resolveReasoningRoute(finalText, stSettings, agentName);
-      const cleanupCloudMode = stSettings.cleanupCloudMode || "openwhispr";
+      const cleanupCloudMode = stSettings.cleanupCloudMode || "openmur";
 
       try {
         if (route.kind === "agent") {
@@ -2544,7 +2537,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             { reasoningDurationMs: Math.round(performance.now() - reasoningStart) },
             "streaming"
           );
-        } else if (route.kind === "cleanup" && cleanupCloudMode === "openwhispr") {
+        } else if (route.kind === "cleanup" && cleanupCloudMode === "openmur") {
           const reasonResult = await withSessionRefresh(async () => {
             const res = await window.electronAPI.cloudReason(finalText, {
               agentName,
@@ -2618,7 +2611,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         "streaming"
       );
       try {
-        const batchResult = await this.processWithOpenWhisprCloud(fallbackBlob, {
+        const batchResult = await this.processWithOpenMurCloud(fallbackBlob, {
           durationSeconds,
         });
         if (batchResult?.text) {
@@ -2707,6 +2700,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   shouldShowPreviewCleanupState() {
+    if (LOCAL_ONLY) return false;
     const settings = getSettings();
     return (!!settings.useCleanupModel || !!settings.useDictationAgent) && !this.skipReasoning;
   }

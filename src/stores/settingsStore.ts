@@ -14,6 +14,7 @@ import {
   type InferenceScopeDefinition,
   type InferenceScopeStoreKeys,
 } from "../config/inferenceScopes";
+import { LOCAL_ONLY, LOCAL_ONLY_DEFAULTS, applyLocalOnlySettings } from "../config/localOnlyMode";
 import type {
   TranscriptionSettings,
   CleanupSettings,
@@ -185,7 +186,7 @@ function migrateProviderSettings() {
   const useLocal = localStorage.getItem("useLocalWhisper") === "true";
   const provider = localStorage.getItem("cloudTranscriptionProvider");
 
-  let transcriptionMode: InferenceMode = "openwhispr";
+  let transcriptionMode: InferenceMode = "openmur";
   if (useLocal) {
     transcriptionMode = "local";
   } else if (cloudMode === "byok") {
@@ -204,7 +205,7 @@ function migrateProviderSettings() {
 
   const reasoningMode = localStorage.getItem("cloudReasoningMode");
   const reasoningProvider = localStorage.getItem("reasoningProvider");
-  let newReasoningMode: InferenceMode = "openwhispr";
+  let newReasoningMode: InferenceMode = "openmur";
   if (reasoningMode === "byok") {
     if (reasoningProvider === "custom") {
       newReasoningMode = "self-hosted";
@@ -244,7 +245,7 @@ function migrateAgentMode() {
   const cloudAgentMode = localStorage.getItem("cloudAgentMode");
   const agentProvider = localStorage.getItem("agentProvider");
 
-  let agentInferenceMode: InferenceMode = "openwhispr";
+  let agentInferenceMode: InferenceMode = "openmur";
   if (cloudAgentMode === "byok") {
     const localProviders = ["qwen", "llama", "mistral", "openai-oss", "gemma"];
     if (agentProvider === "custom") {
@@ -687,7 +688,7 @@ function invalidateApiKeyCaches(
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   uiLanguage: normalizeUiLanguage(isBrowser ? localStorage.getItem("uiLanguage") : null),
-  useLocalWhisper: readBoolean("useLocalWhisper", false),
+  useLocalWhisper: readBoolean("useLocalWhisper", LOCAL_ONLY_DEFAULTS.useLocalWhisper),
   whisperModel: readString("whisperModel", "base"),
   localTranscriptionProvider: (readString("localTranscriptionProvider", "whisper") === "nvidia"
     ? "nvidia"
@@ -705,17 +706,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   ),
   // Secrets aren't hydrated yet at construction; the BYOK default is set
   // post-hydration in initializeSettings.
-  cloudTranscriptionMode: readString("cloudTranscriptionMode", "openwhispr"),
-  cleanupCloudMode: readString("cleanupCloudMode", "openwhispr"),
+  cloudTranscriptionMode: readString("cloudTranscriptionMode", LOCAL_ONLY_DEFAULTS.cloudTranscriptionMode),
+  cleanupCloudMode: readString("cleanupCloudMode", LOCAL_ONLY_DEFAULTS.cleanupCloudMode),
   cleanupCloudBaseUrl: readString("cleanupCloudBaseUrl", API_ENDPOINTS.OPENAI_BASE),
   customDictionary: readStringArray("customDictionary", []),
   assemblyAiStreaming: readBoolean("assemblyAiStreaming", true),
 
   autoGenerateNoteTitle: readBoolean("autoGenerateNoteTitle", true),
-  useCleanupModel: readBoolean("useCleanupModel", true),
-  useDictationAgent: readBoolean("useDictationAgent", true),
-  cleanupModel: readString("cleanupModel", ""),
-  cleanupProvider: readString("cleanupProvider", "openai"),
+  useCleanupModel: readBoolean("useCleanupModel", LOCAL_ONLY_DEFAULTS.useCleanupModel),
+  useDictationAgent: readBoolean("useDictationAgent", LOCAL_ONLY_DEFAULTS.useDictationAgent),
+  cleanupModel: readString("cleanupModel", LOCAL_ONLY_DEFAULTS.cleanupModel),
+  cleanupProvider: readString("cleanupProvider", LOCAL_ONLY_DEFAULTS.cleanupProvider),
 
   // Secrets hydrate from main process in initializeSettings, never from localStorage.
   openaiApiKey: "",
@@ -747,9 +748,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   meetingHotkeyLayoutMode: (readString("meetingHotkeyLayoutMode", "full-width") === "side-panel"
     ? "side-panel"
     : "full-width") as "side-panel" | "full-width",
-  activationMode: (readString("activationMode", "tap") === "push" ? "push" : "tap") as
-    | "tap"
-    | "push",
+  activationMode: (readString("activationMode", LOCAL_ONLY_DEFAULTS.activationMode) === "push"
+    ? "push"
+    : "tap") as "tap" | "push",
 
   preferBuiltInMic: readBoolean("preferBuiltInMic", true),
   selectedMicDeviceId: readString("selectedMicDeviceId", ""),
@@ -821,17 +822,20 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (v === "bottom-right" || v === "center" || v === "bottom-left") return v;
     return "bottom-right" as const;
   })(),
-  showTranscriptionPreview: readBoolean("showTranscriptionPreview", false),
-  autoPasteEnabled: readBoolean("autoPasteEnabled", true),
+  showTranscriptionPreview: readBoolean(
+    "showTranscriptionPreview",
+    LOCAL_ONLY_DEFAULTS.showTranscriptionPreview
+  ),
+  autoPasteEnabled: readBoolean("autoPasteEnabled", LOCAL_ONLY_DEFAULTS.autoPasteEnabled),
   keepTranscriptionInClipboard: readBoolean("keepTranscriptionInClipboard", false),
   noteFilesEnabled: readBoolean("noteFilesEnabled", false),
   noteFilesPath: readString("noteFilesPath", ""),
-  isSignedIn: readBoolean("isSignedIn", false),
+  isSignedIn: readBoolean("isSignedIn", LOCAL_ONLY_DEFAULTS.isSignedIn),
 
   transcriptionMode: (() => {
-    const v = readString("transcriptionMode", "openwhispr");
-    if (v === "openwhispr" || v === "providers" || v === "local" || v === "self-hosted") return v;
-    return "openwhispr" as InferenceMode;
+    const v = readString("transcriptionMode", LOCAL_ONLY_DEFAULTS.transcriptionMode);
+    if (v === "openmur" || v === "providers" || v === "local" || v === "self-hosted") return v;
+    return LOCAL_ONLY_DEFAULTS.transcriptionMode;
   })(),
   remoteTranscriptionType: (() => {
     const v = readString("remoteTranscriptionType", "lan");
@@ -839,23 +843,23 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   })(),
   remoteTranscriptionUrl: readString("remoteTranscriptionUrl", ""),
   cleanupMode: (() => {
-    const v = readString("cleanupMode", "openwhispr");
+    const v = readString("cleanupMode", LOCAL_ONLY_DEFAULTS.cleanupMode);
     if (
-      v === "openwhispr" ||
+      v === "openmur" ||
       v === "providers" ||
       v === "local" ||
       v === "self-hosted" ||
       v === "enterprise"
     )
       return v;
-    return "openwhispr" as InferenceMode;
+    return LOCAL_ONLY_DEFAULTS.cleanupMode;
   })(),
   cleanupRemoteUrl: readString("cleanupRemoteUrl", ""),
 
   meetingTranscriptionMode: (() => {
-    const v = readString("meetingTranscriptionMode", "openwhispr");
-    if (v === "openwhispr" || v === "providers" || v === "local" || v === "self-hosted") return v;
-    return "openwhispr" as InferenceMode;
+    const v = readString("meetingTranscriptionMode", "openmur");
+    if (v === "openmur" || v === "providers" || v === "local" || v === "self-hosted") return v;
+    return "openmur" as InferenceMode;
   })(),
   meetingUseLocalWhisper: readBoolean("meetingUseLocalWhisper", false),
   meetingWhisperModel: readString("meetingWhisperModel", ""),
@@ -875,16 +879,16 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   meetingRemoteTranscriptionUrl: readString("meetingRemoteTranscriptionUrl", ""),
 
   noteFormattingMode: (() => {
-    const v = readString("noteFormattingMode", "openwhispr");
+    const v = readString("noteFormattingMode", "openmur");
     if (
-      v === "openwhispr" ||
+      v === "openmur" ||
       v === "providers" ||
       v === "local" ||
       v === "self-hosted" ||
       v === "enterprise"
     )
       return v;
-    return "openwhispr" as InferenceMode;
+    return "openmur" as InferenceMode;
   })(),
   noteFormattingProvider: readString("noteFormattingProvider", ""),
   noteFormattingModel: readString("noteFormattingModel", ""),
@@ -931,18 +935,18 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   chatAgentModel: readString("chatAgentModel", "openai/gpt-oss-120b"),
   chatAgentProvider: readString("chatAgentProvider", "groq"),
   chatAgentKey: readString("chatAgentKey", ""),
-  chatAgentCloudMode: readString("chatAgentCloudMode", "openwhispr"),
+  chatAgentCloudMode: readString("chatAgentCloudMode", "openmur"),
   chatAgentMode: (() => {
-    const v = readString("chatAgentMode", "openwhispr");
+    const v = readString("chatAgentMode", "openmur");
     if (
-      v === "openwhispr" ||
+      v === "openmur" ||
       v === "providers" ||
       v === "local" ||
       v === "self-hosted" ||
       v === "enterprise"
     )
       return v;
-    return "openwhispr" as InferenceMode;
+    return "openmur" as InferenceMode;
   })(),
   chatAgentRemoteUrl: readString("chatAgentRemoteUrl", ""),
   chatAgentCloudBaseUrl: readString("chatAgentCloudBaseUrl", ""),
@@ -951,7 +955,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   dictationAgentMode: (() => {
     const v = readString("dictationAgentMode", "");
     if (
-      v === "openwhispr" ||
+      v === "openmur" ||
       v === "providers" ||
       v === "local" ||
       v === "self-hosted" ||
@@ -1465,19 +1469,23 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 // --- Selectors (derived state, not stored) ---
 
 export const selectIsCloudCleanupMode = (state: SettingsState) =>
-  state.isSignedIn && state.cleanupMode === "openwhispr" && state.cleanupCloudMode === "openwhispr";
+  LOCAL_ONLY
+    ? false
+    : state.isSignedIn &&
+      state.cleanupMode === "openmur" &&
+      state.cleanupCloudMode === "openmur";
 
 export const selectEffectiveCleanupProvider = (state: SettingsState) =>
-  selectIsCloudCleanupMode(state) ? "openwhispr" : state.cleanupProvider;
+  selectIsCloudCleanupMode(state) ? "openmur" : state.cleanupProvider;
 
 export const selectIsCloudChatAgentMode = (state: SettingsState) =>
   state.isSignedIn &&
-  state.chatAgentMode === "openwhispr" &&
-  state.chatAgentCloudMode === "openwhispr";
+  state.chatAgentMode === "openmur" &&
+  state.chatAgentCloudMode === "openmur";
 
 export const selectIsCloudNoteFormattingMode = (state: SettingsState) => {
   const cfg = selectResolvedNoteFormatting(state);
-  return state.isSignedIn && cfg.mode === "openwhispr" && cfg.cloudMode === "openwhispr";
+  return state.isSignedIn && cfg.mode === "openmur" && cfg.cloudMode === "openmur";
 };
 
 export interface ResolvedMeetingTranscription {
@@ -1685,6 +1693,8 @@ export async function initializeSettings(): Promise<void> {
       for (const key of STALE_SECRET_LOCALSTORAGE_KEYS) {
         localStorage.removeItem(key);
       }
+
+      applyLocalOnlySettings((partial) => useSettingsStore.setState(partial));
     } catch (err) {
       logger.warn(
         "Failed to hydrate secrets from main process",

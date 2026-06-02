@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { LOCAL_ONLY } from "../config/localOnlyMode";
 import { useSettings } from "./useSettings";
 
 export function useTheme() {
@@ -14,6 +15,14 @@ export function useTheme() {
           ? "dark"
           : "light"
         : theme;
+
+    if (LOCAL_ONLY) {
+      htmlElement.classList.add("local-brand");
+      document.body.classList.add("local-brand");
+    } else {
+      htmlElement.classList.remove("local-brand");
+      document.body.classList.remove("local-brand");
+    }
 
     // Apply dark class
     if (effectiveTheme === "dark") {

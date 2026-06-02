@@ -26,6 +26,7 @@ import {
   useMeetingRecordingStore,
 } from "../stores/meetingRecordingStore";
 import ControlPanelSidebar, { type ControlPanelView } from "./ControlPanelSidebar";
+import LocalSettingsView, { type LocalSettingsTab } from "./LocalSettingsView";
 import MeetingRecordingMount from "./MeetingRecordingMount";
 import MeetingRecordingPill from "./notes/MeetingRecordingPill";
 import WindowControls from "./WindowControls";
@@ -47,8 +48,30 @@ import AcceptInvitationModal, {
   clearPendingInvitationToken,
 } from "./AcceptInvitationModal";
 import { WORKSPACES_ENABLED } from "../lib/features";
+import { LOCAL_ONLY } from "../config/localOnlyMode";
+import { cn } from "./lib/utils";
 
 const platform = getCachedPlatform();
+
+const LOCAL_SETTINGS_VIEWS = new Set<LocalSettingsTab>(["general", "models", "hotkeys"]);
+
+function isLocalSettingsView(view: ControlPanelView): view is LocalSettingsTab {
+  return LOCAL_SETTINGS_VIEWS.has(view as LocalSettingsTab);
+}
+
+function resolveLocalSettingsView(section?: string): LocalSettingsTab {
+  const map: Record<string, LocalSettingsTab> = {
+    general: "general",
+    models: "models",
+    hotkeys: "hotkeys",
+    speechToText: "models",
+    transcription: "models",
+    llms: "models",
+    aiModels: "models",
+    intelligence: "models",
+  };
+  return (section && map[section]) || "general";
+}
 
 const SettingsModal = React.lazy(() => import("./SettingsModal"));
 const ReferralModal = React.lazy(() => import("./ReferralModal"));
@@ -76,7 +99,9 @@ export default function ControlPanel() {
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showCloudMigrationBanner, setShowCloudMigrationBanner] = useState(false);
-  const [activeView, setActiveView] = useState<ControlPanelView>("home");
+  const [activeView, setActiveView] = useState<ControlPanelView>(
+    LOCAL_ONLY ? "general" : "home"
+  );
   const isMeetingMode = useIsMeetingMode();
   const isNarrowWindow = useIsNarrowWindow();
   const activeNoteId = useActiveNoteId();
@@ -166,20 +191,29 @@ export default function ControlPanel() {
     setShowPostMigration(false);
   }, []);
 
+  const openPanelSettings = useCallback((section?: string) => {
+    if (LOCAL_ONLY) {
+      setActiveView(resolveLocalSettingsView(section));
+      return;
+    }
+    setSettingsSection(section);
+    setShowSettings(true);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = platform === "darwin" ? e.metaKey : e.ctrlKey;
       if (mod && e.key === "k") {
         e.preventDefault();
-        setShowSearch(true);
+        if (!LOCAL_ONLY) setShowSearch(true);
       } else if (mod && e.key === ",") {
         e.preventDefault();
-        setShowSettings(true);
+        openPanelSettings("general");
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [openPanelSettings]);
 
   useEffect(() => {
     if (updateStatus.updateDownloaded && !isDownloading) {
@@ -269,7 +303,7 @@ export default function ControlPanel() {
 
     cloudMigrationProcessed.current = true;
     setUseLocalWhisper(false);
-    setCloudTranscriptionMode("openwhispr");
+    setCloudTranscriptionMode("openmur");
     localStorage.removeItem("pendingCloudMigration");
     setShowCloudMigrationBanner(true);
   }, [authLoaded, isSignedIn, setUseLocalWhisper, setCloudTranscriptionMode]);
@@ -337,10 +371,10 @@ export default function ControlPanel() {
 
   useEffect(() => {
     const cleanup = window.electronAPI?.onShowSettings?.(() => {
-      setShowSettings(true);
+      openPanelSettings("general");
     });
     return () => cleanup?.();
-  }, []);
+  }, [openPanelSettings]);
 
   // When accessibility is missing on macOS, open the permissions settings page
   useEffect(() => {
@@ -360,10 +394,12 @@ export default function ControlPanel() {
   }, [toast, t]);
 
   useEffect(() => {
+    if (LOCAL_ONLY) return;
     syncService.syncAll().catch(console.error);
   }, []);
 
   useEffect(() => {
+    if (LOCAL_ONLY) return;
     fetchStreamingProviders();
   }, []);
 
@@ -620,17 +656,19 @@ export default function ControlPanel() {
   };
 
   return (
-    <div className="h-screen bg-background flex flex-col">
-      <MeetingRecordingMount />
-      <MeetingRecordingPill
-        activeView={activeView}
-        activeNoteId={activeNoteId}
-        onReturnToNote={() => {
-          setActiveView("personal-notes");
-          setActiveFolderId(recordingFolderId);
-          setActiveNoteId(recordingNoteId);
-        }}
-      />
+    <div className="control-panel-window h-screen bg-background flex flex-col">
+      {!LOCAL_ONLY && <MeetingRecordingMount />}
+      {!LOCAL_ONLY && (
+        <MeetingRecordingPill
+          activeView={activeView}
+          activeNoteId={activeNoteId}
+          onReturnToNote={() => {
+            setActiveView("personal-notes");
+            setActiveFolderId(recordingFolderId);
+            setActiveNoteId(recordingNoteId);
+          }}
+        />
+      )}
       <ConfirmDialog
         open={confirmDialog.open}
         onOpenChange={hideConfirmDialog}
@@ -648,20 +686,24 @@ export default function ControlPanel() {
         onOk={() => {}}
       />
 
-      <UpgradePrompt
-        open={showUpgradePrompt}
-        onOpenChange={setShowUpgradePrompt}
-        wordsUsed={limitData?.wordsUsed}
-        limit={limitData?.limit}
-      />
+      {!LOCAL_ONLY && (
+        <UpgradePrompt
+          open={showUpgradePrompt}
+          onOpenChange={setShowUpgradePrompt}
+          wordsUsed={limitData?.wordsUsed}
+          limit={limitData?.limit}
+        />
+      )}
 
-      <PostMigrationOnboarding
-        open={showPostMigration}
-        onOpenChange={setShowPostMigration}
-        onDone={dismissPostMigrationPermanently}
-      />
+      {!LOCAL_ONLY && (
+        <PostMigrationOnboarding
+          open={showPostMigration}
+          onOpenChange={setShowPostMigration}
+          onDone={dismissPostMigrationPermanently}
+        />
+      )}
 
-      {showSettings && (
+      {showSettings && !LOCAL_ONLY && (
         <Suspense fallback={null}>
           <SettingsModal
             open={showSettings}
@@ -691,7 +733,7 @@ export default function ControlPanel() {
         />
       )}
 
-      {showSearch && (
+      {showSearch && !LOCAL_ONLY && (
         <Suspense fallback={null}>
           <CommandSearch
             open={showSearch}
@@ -717,16 +759,17 @@ export default function ControlPanel() {
           <ControlPanelSidebar
             activeView={activeView}
             onViewChange={setActiveView}
-            onOpenSearch={() => setShowSearch(true)}
-            onOpenSettings={() => {
-              setSettingsSection(undefined);
-              setShowSettings(true);
-            }}
-            onOpenReferrals={() => setShowReferrals(true)}
-            onUpgrade={() => {
-              setSettingsSection("plansBilling");
-              setShowSettings(true);
-            }}
+            onOpenSearch={LOCAL_ONLY ? undefined : () => setShowSearch(true)}
+            onOpenSettings={() => openPanelSettings("general")}
+            onOpenReferrals={LOCAL_ONLY ? undefined : () => setShowReferrals(true)}
+            onUpgrade={
+              LOCAL_ONLY
+                ? undefined
+                : () => {
+                    setSettingsSection("plansBilling");
+                    setShowSettings(true);
+                  }
+            }
             isOverLimit={usage?.isOverLimit ?? false}
             userName={user?.name}
             userEmail={user?.email}
@@ -756,12 +799,15 @@ export default function ControlPanel() {
         </div>
         <main className="flex-1 flex flex-col overflow-hidden">
           <div
-            className="flex items-center justify-between w-full h-10 shrink-0"
+            className="relative w-full h-11 shrink-0"
             style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
           >
             {isSidePanelLayout && (
               <div
-                className={platform === "darwin" ? "ml-[84px] mt-[16px]" : "ml-2"}
+                className={cn(
+                  "absolute left-2 top-1/2 -translate-y-1/2 z-10",
+                  platform === "darwin" && "left-[84px] top-[calc(50%+8px)]"
+                )}
                 style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
               >
                 <Button
@@ -775,14 +821,19 @@ export default function ControlPanel() {
                 </Button>
               </div>
             )}
-            <div className="flex-1" />
             {platform !== "darwin" && (
-              <div className="pr-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+              <div
+                className="absolute top-2.5 right-3 z-20"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              >
                 <WindowControls />
               </div>
             )}
           </div>
-          <div className="flex-1 overflow-y-auto pt-1">
+          <div
+            className="flex-1 overflow-y-auto pt-1"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          >
             {usage?.isPastDue && activeView === "home" && (
               <div className="max-w-3xl mx-auto w-full mb-3">
                 <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 p-3">
@@ -875,18 +926,20 @@ export default function ControlPanel() {
                 clearAllTranscriptions={clearAllTranscriptions}
                 onShowAudioInFolder={showAudioInFolder}
                 onRetryTranscription={retryTranscription}
-                onOpenSettings={(section) => {
-                  setSettingsSection(section);
-                  setShowSettings(true);
-                }}
+                onOpenSettings={openPanelSettings}
               />
             )}
-            {activeView === "chat" && (
+            {LOCAL_ONLY && isLocalSettingsView(activeView) && (
+              <div className="px-4 pt-2 pb-6 max-w-3xl mx-auto w-full min-h-0">
+                <LocalSettingsView activeTab={activeView} />
+              </div>
+            )}
+            {!LOCAL_ONLY && activeView === "chat" && (
               <Suspense fallback={null}>
                 <ChatView />
               </Suspense>
             )}
-            {activeView === "personal-notes" && (
+            {!LOCAL_ONLY && activeView === "personal-notes" && (
               <Suspense fallback={null}>
                 <PersonalNotesView
                   onOpenSettings={(section) => {
@@ -904,7 +957,7 @@ export default function ControlPanel() {
                 <DictionaryView />
               </Suspense>
             )}
-            {activeView === "upload" && (
+            {!LOCAL_ONLY && activeView === "upload" && (
               <Suspense fallback={null}>
                 <UploadAudioView
                   onNoteCreated={(noteId, folderId) => {
@@ -919,7 +972,7 @@ export default function ControlPanel() {
                 />
               </Suspense>
             )}
-            {activeView === "integrations" && (
+            {!LOCAL_ONLY && activeView === "integrations" && (
               <Suspense fallback={null}>
                 <IntegrationsView
                   isPaid={!!(usage?.isSubscribed || usage?.isTrial)}
@@ -933,7 +986,7 @@ export default function ControlPanel() {
           </div>
         </main>
       </div>
-      <BackgroundActionToastListener />
+      {!LOCAL_ONLY && <BackgroundActionToastListener />}
     </div>
   );
 }

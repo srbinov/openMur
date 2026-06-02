@@ -7,28 +7,28 @@ Enable verbose logging to diagnose issues like "no audio detected" or transcript
 ### Option 1: Command Line
 ```bash
 # macOS
-/Applications/OpenWhispr.app/Contents/MacOS/OpenWhispr --log-level=debug
+/Applications/openMur.app/Contents/MacOS/openMur --log-level=debug
 
 # Windows
-OpenWhispr.exe --log-level=debug
+openMur.exe --log-level=debug
 ```
 
 ### Option 2: Environment File
 Add to your `.env` file and restart:
 ```
-OPENWHISPR_LOG_LEVEL=debug
+OPENMUR_LOG_LEVEL=debug
 ```
 
 **Env file locations:**
-- macOS: `~/Library/Application Support/OpenWhispr/.env`
-- Windows: `%APPDATA%\OpenWhispr\.env`
-- Linux: `~/.config/OpenWhispr/.env`
+- macOS: `~/Library/Application Support/openMur/.env`
+- Windows: `%APPDATA%\openMur\.env`
+- Linux: `~/.config/openMur/.env`
 
 ## Log File Locations
 
-- **macOS**: `~/Library/Application Support/OpenWhispr/logs/debug-*.log`
-- **Windows**: `%APPDATA%\OpenWhispr\logs\debug-*.log`
-- **Linux**: `~/.config/OpenWhispr/logs/debug-*.log`
+- **macOS**: `~/Library/Application Support/openMur/logs/debug-*.log`
+- **Windows**: `%APPDATA%\openMur\logs\debug-*.log`
+- **Linux**: `~/.config/openMur/logs/debug-*.log`
 
 ## What Gets Logged
 
@@ -76,4 +76,4 @@ When reporting issues:
 
 Debug mode is off by default. To ensure it's disabled:
 - Remove `--log-level=debug` from command
-- Remove `OPENWHISPR_LOG_LEVEL` from `.env`
+- Remove `OPENMUR_LOG_LEVEL` from `.env`
