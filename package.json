@@ -148,7 +148,7 @@
     "@tiptap/extension-task-list": "^3.22.3",
     "@tiptap/react": "^3.22.3",
     "@tiptap/starter-kit": "^3.22.3",
-    "ai": "^6.0.116",
+    "ai": "^6.0.205",
     "better-auth": "^1.6.9",
     "better-sqlite3": "^12.8.0",
     "class-variance-authority": "^0.7.1",
