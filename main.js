@@ -798,6 +798,7 @@ async function startApp() {
   ipcMain.on("activation-mode-changed", (_event, mode) => {
     windowManager.setActivationModeCache(mode);
     environmentManager.saveActivationMode(mode);
+    void windowManager.reinitializeDictationHotkey?.();
   });
 
   ipcMain.on("floating-icon-auto-hide-changed", (_event, enabled) => {
@@ -1453,12 +1454,20 @@ async function startApp() {
       }
     };
 
+    let lastLinuxTapToggleAt = 0;
+    const LINUX_TAP_DEBOUNCE_MS = 400;
+
     linuxKeyManager.on("key-down", (_key) => {
       const activationMode = windowManager.getActivationMode();
       debugLogger.debug("[Push-to-Talk] Linux KEY_DOWN", { activationMode });
       if (activationMode === "push") {
         windowManager.startWindowsPushToTalk();
       } else if (activationMode === "tap") {
+        const now = Date.now();
+        if (now - lastLinuxTapToggleAt < LINUX_TAP_DEBOUNCE_MS) {
+          return;
+        }
+        lastLinuxTapToggleAt = now;
         windowManager.sendToggleDictation();
       }
     });

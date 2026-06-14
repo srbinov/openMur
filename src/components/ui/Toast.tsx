@@ -208,7 +208,7 @@ const Toast: React.FC<
     <div
       className={cn(
         "group toast-surface pointer-events-auto relative flex w-75",
-        "rounded-[5px]",
+        "rounded-xl overflow-hidden",
         "transition-[opacity,transform] duration-200 ease-out",
         isExiting
           ? "opacity-0 translate-x-2 scale-[0.98]"

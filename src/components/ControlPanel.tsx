@@ -50,6 +50,7 @@ import AcceptInvitationModal, {
 import { WORKSPACES_ENABLED } from "../lib/features";
 import { LOCAL_ONLY } from "../config/localOnlyMode";
 import { cn } from "./lib/utils";
+import { GlassWindow } from "./ui/liquid-glass";
 
 const platform = getCachedPlatform();
 
@@ -656,7 +657,7 @@ export default function ControlPanel() {
   };
 
   return (
-    <div className="control-panel-window h-screen bg-background flex flex-col">
+    <GlassWindow className="control-panel-window h-screen flex flex-col min-h-0">
       {!LOCAL_ONLY && <MeetingRecordingMount />}
       {!LOCAL_ONLY && (
         <MeetingRecordingPill
@@ -751,9 +752,9 @@ export default function ControlPanel() {
         </Suspense>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden gap-2 p-2 min-h-0">
         <div
-          className="shrink-0 overflow-hidden transition-[width] duration-300 ease-out"
+          className="shrink-0 overflow-hidden transition-[width] duration-300 ease-out h-full"
           style={{ width: isSidePanelLayout ? 0 : undefined }}
         >
           <ControlPanelSidebar
@@ -772,8 +773,6 @@ export default function ControlPanel() {
             }
             isOverLimit={usage?.isOverLimit ?? false}
             userName={user?.name}
-            userEmail={user?.email}
-            userImage={user?.image}
             isSignedIn={isSignedIn}
             authLoaded={authLoaded}
             isProUser={!!(usage?.isSubscribed || usage?.isTrial)}
@@ -797,7 +796,8 @@ export default function ControlPanel() {
             }
           />
         </div>
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex flex-1 min-w-0 flex-col overflow-hidden bg-transparent">
+        <main className="flex-1 flex flex-col overflow-hidden h-full bg-transparent">
           <div
             className="relative w-full h-11 shrink-0"
             style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
@@ -985,8 +985,9 @@ export default function ControlPanel() {
             )}
           </div>
         </main>
+        </div>
       </div>
       {!LOCAL_ONLY && <BackgroundActionToastListener />}
-    </div>
+    </GlassWindow>
   );
 }

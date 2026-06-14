@@ -4,6 +4,8 @@ import "./index.css";
 import { X } from "lucide-react";
 import { useToast } from "./components/ui/useToast";
 import { LoadingDots } from "./components/ui/LoadingDots";
+import { GlassEffect } from "./components/ui/liquid-glass";
+import { cn } from "./components/lib/utils";
 import { useHotkey } from "./hooks/useHotkey";
 import { formatHotkeyLabel } from "./utils/hotkeys";
 import { useWindowDrag } from "./hooks/useWindowDrag";
@@ -51,27 +53,22 @@ const VoiceWaveIndicator = ({ isListening }) => {
 const Tooltip = ({ children, content, emoji, align = "center" }) => {
   const [isVisible, setIsVisible] = useState(false);
 
-  const alignClass =
-    align === "right" ? "right-0" : align === "left" ? "left-0" : "left-1/2 -translate-x-1/2";
-
-  const arrowClass =
-    align === "right" ? "right-3" : align === "left" ? "left-3" : "left-1/2 -translate-x-1/2";
-
   return (
     <div className="relative inline-block">
       <div onMouseEnter={() => setIsVisible(true)} onMouseLeave={() => setIsVisible(false)}>
         {children}
       </div>
       {isVisible && (
-        <div
-          className={`absolute bottom-full ${alignClass} mb-2 px-1.5 py-1 text-[10px] text-popover-foreground bg-popover border border-border rounded-md z-10 shadow-lg transition-opacity duration-150 whitespace-nowrap`}
+        <GlassEffect
+          interactive={false}
+          density="surface"
+          rounded="rounded-lg"
+          className="absolute bottom-full mb-2 px-2 py-1 text-[10px] whitespace-nowrap z-10"
+          style={{ ...(align === "center" ? { left: "50%", transform: "translateX(-50%)" } : align === "right" ? { right: 0 } : { left: 0 }) }}
         >
           {emoji && <span className="mr-1">{emoji}</span>}
           {content}
-          <div
-            className={`absolute top-full ${arrowClass} w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-popover`}
-          ></div>
-        </div>
+        </GlassEffect>
       )}
     </div>
   );
@@ -296,29 +293,32 @@ export default function App() {
   const micState = getMicState();
 
   const getMicButtonProps = () => {
-    const baseClasses =
-      "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
+    const baseClasses = "w-12 h-12 flex items-center justify-center relative";
 
     switch (micState) {
       case "idle":
       case "hover":
         return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
+          className: baseClasses,
+          tint: "default",
           tooltip: formatHotkeyLabel(hotkey),
         };
       case "recording":
         return {
-          className: `${baseClasses} bg-primary cursor-pointer`,
+          className: baseClasses,
+          tint: "listening",
           tooltip: t("app.mic.recording"),
         };
       case "processing":
         return {
-          className: `${baseClasses} bg-accent cursor-not-allowed`,
+          className: baseClasses,
+          tint: "accent",
           tooltip: t("app.mic.processing"),
         };
       default:
         return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
+          className: baseClasses,
+          tint: "default",
           style: { transform: "scale(0.8)" },
           tooltip: t("app.mic.clickToSpeak"),
         };
@@ -395,7 +395,6 @@ export default function App() {
                       Math.pow(e.clientY - dragStartPos.y, 2)
                   );
                   if (distance > 5) {
-                    // 5px threshold for drag
                     setHasDragged(true);
                   }
                 }
@@ -420,26 +419,31 @@ export default function App() {
               }}
               onFocus={() => setIsHovered(true)}
               onBlur={() => setIsHovered(false)}
-              className={micProps.className}
+              className="border-0 bg-transparent p-0 cursor-pointer"
               style={{
-                ...micProps.style,
                 cursor:
                   micState === "processing"
-                    ? "not-allowed !important"
+                    ? "not-allowed"
                     : isDragging
-                      ? "grabbing !important"
-                      : "pointer !important",
-                transition:
-                  "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease-out",
+                      ? "grabbing"
+                      : "pointer",
               }}
             >
+              <GlassEffect
+                tint={micProps.tint}
+                density="surface"
+                rounded="rounded-full"
+                interactive={micState !== "processing"}
+                className={cn(micProps.className, "ring-2 ring-white/30")}
+                style={micProps.style}
+              >
               {/* Background effects */}
               <div
-                className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent transition-opacity duration-150"
+                className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent transition-opacity duration-150 rounded-full"
                 style={{ opacity: micState === "hover" ? 0.8 : 0 }}
               ></div>
               <div
-                className="absolute inset-0 transition-colors duration-150"
+                className="absolute inset-0 transition-colors duration-150 rounded-full"
                 style={{
                   backgroundColor: micState === "hover" ? "rgba(0,0,0,0.1)" : "transparent",
                 }}
@@ -456,19 +460,23 @@ export default function App() {
 
               {/* State indicator ring for recording */}
               {micState === "recording" && (
-                <div className="absolute inset-0 rounded-full border-2 border-primary/50 animate-pulse"></div>
+                <div className="absolute inset-0 rounded-full border-2 border-white/40 animate-pulse"></div>
               )}
 
               {/* State indicator ring for processing */}
               {micState === "processing" && (
                 <div className="absolute inset-0 rounded-full border-2 border-primary/30 opacity-50"></div>
               )}
+              </GlassEffect>
             </button>
           </Tooltip>
           {isCommandMenuOpen && (
-            <div
+            <GlassEffect
+              interactive={false}
+              density="pane"
+              rounded="rounded-xl"
+              className="absolute bottom-full right-0 mb-3 w-48 text-popover-foreground flex-col overflow-hidden"
               ref={commandMenuRef}
-              className="absolute bottom-full right-0 mb-3 w-48 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm"
               onMouseEnter={() => {
                 setWindowInteractivity(true);
               }}
@@ -479,7 +487,7 @@ export default function App() {
               }}
             >
               <button
-                className="w-full px-3 py-2 text-left text-sm font-medium hover:bg-muted focus:bg-muted focus:outline-none"
+                className="w-full px-3 py-2 text-left text-sm font-medium hover:bg-white/10 focus:bg-white/10 focus:outline-none"
                 onClick={() => {
                   toggleListening();
                 }}
@@ -488,9 +496,9 @@ export default function App() {
                   ? t("app.commandMenu.stopListening")
                   : t("app.commandMenu.startListening")}
               </button>
-              <div className="h-px bg-border" />
+              <div className="h-px bg-white/10" />
               <button
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-white/10 focus:bg-white/10 focus:outline-none"
                 onClick={() => {
                   setIsCommandMenuOpen(false);
                   setWindowInteractivity(false);
@@ -499,7 +507,7 @@ export default function App() {
               >
                 {t("app.commandMenu.hideForNow")}
               </button>
-            </div>
+            </GlassEffect>
           )}
         </div>
       </div>

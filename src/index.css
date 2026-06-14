@@ -1,4 +1,24 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@keyframes moveBackground {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 0% -1000%;
+  }
+}
+
+@keyframes liquid-glass-shimmer {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -250,7 +270,7 @@
     background: transparent;
   }
 
-  /* Control panel: rounded frameless window (Linux uses transparent shell) */
+  /* Control panel: transparent Electron window + CSS glass shell */
   body.control-panel-shell {
     background: transparent !important;
   }
@@ -262,11 +282,26 @@
 
   body.control-panel-shell .control-panel-window {
     min-height: 100vh;
-    border-radius: 12px;
+    background: transparent !important;
     overflow: hidden;
+    border-radius: 16px;
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.06),
-      0 12px 40px rgba(0, 0, 0, 0.35);
+      0 0 0 1px rgba(255, 255, 255, 0.1),
+      0 20px 60px rgba(0, 0, 0, 0.35);
+  }
+
+  body.control-panel-shell .liquid-glass-window {
+    isolation: isolate;
+  }
+
+  .liquid-glass-distort {
+    filter: url(#glass-distortion);
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(136, 158, 255, 0.06) 45%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
   }
 
   body.control-panel-shell.control-panel-maximized .control-panel-window {
@@ -485,14 +520,17 @@ a:hover {
   filter: invert(1);
 }
 
-/* Toast — opaque dark HUD surface, same in light & dark mode */
+/* Toast — liquid glass HUD surface */
 .toast-surface {
-  background: oklch(0.15 0.006 260);
-  border: 1px solid oklch(0.25 0.006 260);
+  background: oklch(0.18 0.008 260 / 0.72);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  border: 1px solid oklch(1 0 0 / 0.12);
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.04),
-    0 8px 24px -4px oklch(0 0 0 / 0.5),
-    0 2px 8px -2px oklch(0 0 0 / 0.3);
+    inset 2px 2px 1px 0 oklch(1 0 0 / 0.08),
+    inset -1px -1px 1px 1px oklch(1 0 0 / 0.04),
+    0 8px 32px -4px oklch(0 0 0 / 0.45),
+    0 2px 8px -2px oklch(0 0 0 / 0.25);
 }
 
 @keyframes toast-progress {

@@ -1755,6 +1755,7 @@ export async function initializeSettings(): Promise<void> {
       if (envMode && envMode !== state.activationMode) {
         if (isBrowser) localStorage.setItem("activationMode", envMode);
         useSettingsStore.setState({ activationMode: envMode });
+        window.electronAPI?.notifyActivationModeChanged?.(envMode);
       }
     } catch (err) {
       logger.warn(

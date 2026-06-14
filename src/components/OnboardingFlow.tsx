@@ -14,7 +14,6 @@ import {
 import TitleBar from "./TitleBar";
 import WindowControls from "./WindowControls";
 import PermissionsSection from "./ui/PermissionsSection";
-import SupportDropdown from "./ui/SupportDropdown";
 import StepProgress from "./ui/StepProgress";
 import { AlertDialog, ConfirmDialog } from "./ui/dialog";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -26,6 +25,7 @@ import { useSettings } from "../hooks/useSettings";
 import LanguageSelector from "./ui/LanguageSelector";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import { applyLocalOnlySettings } from "../config/localOnlyMode";
+import { GlassWindow } from "./ui/liquid-glass";
 import { useSettingsStore } from "../stores/settingsStore";
 import { formatHotkeyLabel, getDefaultHotkey, isGlobeLikeHotkey } from "../utils/hotkeys";
 import { HotkeyInput } from "./ui/HotkeyInput";
@@ -567,8 +567,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       : "darwin";
 
   return (
-    <div
-      className="control-panel-window h-screen flex flex-col bg-background"
+    <GlassWindow
+      className="control-panel-window h-screen flex flex-col"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
       <ConfirmDialog
@@ -606,17 +606,13 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         </div>
       ) : (
         <div className="shrink-0 z-10">
-          <TitleBar
-            showTitle={true}
-            className="bg-background backdrop-blur-xl border-b border-border shadow-sm"
-            actions={<SupportDropdown />}
-          ></TitleBar>
+          <TitleBar showTitle={true} />
         </div>
       )}
 
       {/* Progress Bar - hidden on welcome/auth step */}
       {showProgress && (
-        <div className="shrink-0 bg-background/80 backdrop-blur-2xl border-b border-white/5 px-6 md:px-12 py-3 z-10">
+        <div className="shrink-0 bg-white/5 dark:bg-white/3 backdrop-blur-xl border-b border-white/10 px-6 md:px-12 py-3 z-10">
           <div className="max-w-3xl mx-auto">
             <StepProgress steps={steps.slice(1)} currentStep={currentStep - 1} />
           </div>
@@ -628,7 +624,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         className={`flex-1 px-6 md:px-12 overflow-y-auto ${currentStep === 0 ? "flex items-center" : "py-6"}`}
       >
         <div className={`w-full ${currentStep === 0 ? "max-w-sm" : "max-w-3xl"} mx-auto`}>
-          <Card className="bg-card/90 backdrop-blur-2xl border border-border/50 dark:border-white/5 shadow-lg rounded-xl overflow-hidden">
+          <Card className="border border-white/15 dark:border-white/10 shadow-lg rounded-xl overflow-hidden">
             <CardContent className={currentStep === 0 ? "p-6" : "p-6 md:p-8"}>
               {renderStep()}
             </CardContent>
@@ -638,7 +634,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
       {/* Footer Navigation - hidden on welcome/auth step */}
       {showProgress && (
-        <div className="shrink-0 bg-background/80 backdrop-blur-2xl border-t border-white/5 px-6 md:px-12 py-3 z-10">
+        <div className="shrink-0 bg-white/5 dark:bg-white/3 backdrop-blur-xl border-t border-white/10 px-6 md:px-12 py-3 z-10">
           <div className="max-w-3xl mx-auto flex items-center justify-between">
             <Button
               onClick={prevStep}
@@ -675,6 +671,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         </div>
       )}
-    </div>
+    </GlassWindow>
   );
 }

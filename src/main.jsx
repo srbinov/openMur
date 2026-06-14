@@ -4,6 +4,7 @@ import { I18nextProvider } from "react-i18next";
 import AppRouter from "./AppRouter.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import { ToastProvider } from "./components/ui/Toast.tsx";
+import { GlassFilter } from "./components/ui/liquid-glass";
 import { SettingsProvider } from "./hooks/useSettings";
 
 import i18n from "./i18n";
@@ -15,6 +16,7 @@ root.render(
     <ErrorBoundary>
       <I18nextProvider i18n={i18n}>
         <SettingsProvider>
+          <GlassFilter />
           <ToastProvider>
             <AppRouter />
           </ToastProvider>

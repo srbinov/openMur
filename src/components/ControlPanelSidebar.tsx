@@ -8,8 +8,6 @@ import {
   Blocks,
   Gift,
   Settings,
-  HelpCircle,
-  UserCircle,
   UserPlus,
   X,
   Search,
@@ -22,7 +20,7 @@ import openMurLogoDarkText from "../assets/openMur-logo-dark-text.png";
 import openMurLogoLightText from "../assets/openMur-logo-light-text.png";
 import { useTranslation } from "react-i18next";
 import { cn } from "./lib/utils";
-import SupportDropdown from "./ui/SupportDropdown";
+import { GlassPanel } from "./ui/liquid-glass";
 import { getCachedPlatform } from "../utils/platform";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import InviteTeammateDialog from "./InviteTeammateDialog";
@@ -53,8 +51,6 @@ interface ControlPanelSidebarProps {
   onUpgrade?: () => void;
   isOverLimit?: boolean;
   userName?: string | null;
-  userEmail?: string | null;
-  userImage?: string | null;
   isSignedIn?: boolean;
   authLoaded?: boolean;
   isProUser?: boolean;
@@ -71,8 +67,6 @@ export default function ControlPanelSidebar({
   onUpgrade,
   isOverLimit,
   userName,
-  userEmail,
-  userImage,
   isSignedIn,
   authLoaded,
   isProUser,
@@ -117,7 +111,7 @@ export default function ControlPanelSidebar({
       ];
 
   return (
-    <div className="w-48 h-full shrink-0 border-r border-border/15 dark:border-white/6 flex flex-col bg-surface-1/60 dark:bg-surface-1">
+    <GlassPanel className="w-48 h-full shrink-0 flex flex-col" tint="default" density="pane">
       <div className="relative h-11 w-full shrink-0">
         <div
           className="absolute inset-0"
@@ -185,11 +179,11 @@ export default function ControlPanelSidebar({
               key={item.id}
               onClick={() => onViewChange(item.id)}
               className={cn(
-                "group relative flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md outline-none transition-colors duration-150 text-left",
+                "group relative flex items-center gap-2.5 w-full h-8 px-2.5 rounded-xl outline-none transition-all duration-200 text-left",
                 "focus-visible:ring-1 focus-visible:ring-primary/30",
                 isActive
-                  ? "bg-[#889eff]/12 dark:bg-[#889eff]/14"
-                  : "hover:bg-foreground/4 dark:hover:bg-white/4 active:bg-foreground/6"
+                  ? "bg-white/25 dark:bg-white/15 border border-white/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
+                  : "hover:bg-white/12 dark:hover:bg-white/8 border border-transparent"
               )}
             >
               <Icon
@@ -331,51 +325,6 @@ export default function ControlPanelSidebar({
             </span>
           </button>
         )}
-
-        <SupportDropdown
-          trigger={
-            <button
-              aria-label={t("sidebar.support")}
-              className="group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none hover:bg-foreground/4 dark:hover:bg-white/4 focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150"
-            >
-              <HelpCircle
-                size={15}
-                className="shrink-0 text-foreground/60 group-hover:text-foreground/75 dark:text-foreground/50 dark:group-hover:text-foreground/65 transition-colors duration-150"
-              />
-              <span className="text-xs text-foreground/80 group-hover:text-foreground dark:text-foreground/70 dark:group-hover:text-foreground/85 transition-colors duration-150">
-                {t("sidebar.support")}
-              </span>
-            </button>
-          }
-        />
-
-        <div className="mx-1 h-px bg-border/10 dark:bg-white/6 my-1.5!" />
-
-        <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md">
-          {userImage ? (
-            <img src={userImage} alt="" className="w-6 h-6 rounded-full shrink-0 object-cover" />
-          ) : (
-            <UserCircle size={18} className="shrink-0 text-foreground/50 dark:text-foreground/45" />
-          )}
-          <div className="flex-1 min-w-0">
-            {isSignedIn && (userName || userEmail) ? (
-              <>
-                <p className="text-xs text-foreground/80 dark:text-foreground/80 truncate leading-tight">
-                  {userName || t("sidebar.defaultUser")}
-                </p>
-                {userEmail && (
-                  <p className="text-xs text-foreground/55 dark:text-foreground/55 truncate leading-tight">
-                    {userEmail}
-                  </p>
-                )}
-              </>
-            ) : authLoaded && !isSignedIn ? (
-              <p className="text-xs text-foreground/45 dark:text-foreground/55">
-                {t("sidebar.notSignedIn")}
-              </p>
-            ) : null}
-          </div>
-        </div>
       </div>
 
       {WORKSPACES_ENABLED && activeWorkspace && (
@@ -389,6 +338,6 @@ export default function ControlPanelSidebar({
       {WORKSPACES_ENABLED && (
         <CreateWorkspaceDialog open={createWorkspaceOpen} onOpenChange={setCreateWorkspaceOpen} />
       )}
-    </div>
+    </GlassPanel>
   );
 }

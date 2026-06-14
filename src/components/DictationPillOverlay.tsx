@@ -2,11 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Loader2 } from "lucide-react";
 import { useTheme } from "../hooks/useTheme";
+import { GlassEffect } from "./ui/liquid-glass";
+import type { GlassTint } from "./ui/liquid-glass";
 
 export type PillState = "idle" | "listening" | "processing" | "pasting" | "done";
-
-const BRAND_PURPLE = "#889eff";
-const BRAND_PURPLE_RGB = "136, 158, 255";
 
 function WaveBars({
   active,
@@ -129,6 +128,14 @@ export default function DictationPillOverlay() {
 
   const isListening = pillState === "listening";
 
+  const glassTint: GlassTint = isListening
+    ? "listening"
+    : isDone
+      ? "success"
+      : isBusy
+        ? "accent"
+        : "default";
+
   return (
     <div className="flex h-full w-full items-end justify-center bg-transparent p-1">
       <div
@@ -142,45 +149,46 @@ export default function DictationPillOverlay() {
         aria-busy={isBusy}
       >
         {isListening && (
-          <div
-            className="rounded-lg border border-[#889eff] bg-transparent px-2.5 py-1 backdrop-blur-sm"
-            style={{ borderColor: BRAND_PURPLE }}
+          <GlassEffect
+            tint="listening"
+            density="surface"
+            interactive={false}
+            rounded="rounded-xl"
+            className="px-2.5 py-1"
           >
-            <p className="text-[10px] font-semibold tracking-wide uppercase leading-none text-foreground dark:text-[#f4f6fc]">
+            <p className="text-[10px] font-semibold tracking-wide uppercase leading-none text-white">
               {statusLabel}
             </p>
-          </div>
+          </GlassEffect>
         )}
 
-        <div
+        <GlassEffect
+          tint={glassTint}
+          density="surface"
+          interactive={false}
+          rounded="rounded-full"
           className={[
-            "flex items-center gap-2.5 rounded-full border backdrop-blur-xl transition-all duration-200 ease-out",
+            "items-center gap-2.5 transition-all duration-200 ease-out",
             isListening
-              ? "px-2.5 py-1.5 min-w-[52px] border-[#889eff] shadow-[0_6px_24px_rgba(136,158,255,0.55)]"
-              : "shadow-[0_6px_20px_rgba(0,0,0,0.14)] dark:bg-surface-2/95 bg-card/96",
-            isDone
-              ? "border-emerald-500/35 px-3.5 py-2 min-w-[140px] max-w-[min(280px,calc(100vw-20px))]"
-              : isBusy
-                ? "border-[#889eff]/30 px-3 py-2 min-w-[130px]"
-                : !isListening && "border-border/30 px-2.5 py-1.5 min-w-[72px]",
+              ? "px-2.5 py-1.5 min-w-[52px]"
+              : isDone
+                ? "px-3.5 py-2 min-w-[140px] max-w-[min(280px,calc(100vw-20px))]"
+                : isBusy
+                  ? "px-3 py-2 min-w-[130px]"
+                  : "px-2.5 py-1.5 min-w-[72px]",
           ].join(" ")}
-          style={
-            isListening
-              ? {
-                  backgroundColor: BRAND_PURPLE,
-                  borderColor: BRAND_PURPLE,
-                  boxShadow: `0 6px 24px rgba(${BRAND_PURPLE_RGB}, 0.55), 0 0 0 1px rgba(${BRAND_PURPLE_RGB}, 0.35)`,
-                }
-              : undefined
-          }
         >
+          <div className="flex items-center gap-2.5 min-w-0 w-full">
           <div className="shrink-0 flex items-center justify-center w-7 h-7">
             {isDone ? (
               <Check className="h-4 w-4 text-emerald-500" strokeWidth={2.5} />
             ) : isBusy ? (
               <Loader2 className="h-4 w-4 text-[#889eff] animate-spin" />
             ) : (
-              <WaveBars active={isListening} />
+              <WaveBars
+                active={isListening}
+                className={isListening ? "bg-white/90" : "bg-[#889eff]/85"}
+              />
             )}
           </div>
 
@@ -193,7 +201,7 @@ export default function DictationPillOverlay() {
                     ? "text-emerald-600 dark:text-emerald-400"
                     : isBusy
                       ? "text-[#889eff]"
-                      : "text-muted-foreground/70",
+                      : "text-muted-foreground/80",
                 ].join(" ")}
               >
                 {statusLabel}
@@ -205,7 +213,7 @@ export default function DictationPillOverlay() {
                     "mt-0.5 leading-snug",
                     isDone
                       ? "text-[11px] text-foreground/90 line-clamp-2"
-                      : "text-[9px] text-muted-foreground/50 truncate",
+                      : "text-[9px] text-muted-foreground/60 truncate",
                   ].join(" ")}
                 >
                   {isDone ? snippet : hintText}
@@ -219,7 +227,8 @@ export default function DictationPillOverlay() {
               <WaveBars active className="bg-[#889eff]/50" />
             </div>
           )}
-        </div>
+          </div>
+        </GlassEffect>
       </div>
 
       <style>{`

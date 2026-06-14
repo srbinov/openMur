@@ -63,15 +63,18 @@ function getActivationModeFromEnv() {
   return LOCAL_ONLY ? "push" : "tap";
 }
 
-/** Push-to-talk with modifier-only hotkeys needs the Linux evdev listener, not GNOME/KDE shortcuts. */
+/**
+ * Linux dictation hotkeys that must use the evdev listener instead of GNOME/KDE/Hyprland
+ * global shortcuts (which only fire a single toggle and would double-fire with evdev).
+ */
 function needsLinuxEvdevPushToTalk(hotkey, activationMode = getActivationModeFromEnv()) {
-  return (
-    process.platform === "linux" &&
-    activationMode === "push" &&
-    hotkey &&
-    !isGlobeLikeHotkey(hotkey) &&
-    (isModifierOnlyHotkey(hotkey) || isRightSideModifier(hotkey))
-  );
+  if (process.platform !== "linux" || !hotkey || isGlobeLikeHotkey(hotkey)) {
+    return false;
+  }
+  if (activationMode === "push") {
+    return true;
+  }
+  return isModifierOnlyHotkey(hotkey) || isRightSideModifier(hotkey);
 }
 
 function isGlobeLikeHotkey(hotkey) {
@@ -665,11 +668,11 @@ class HotkeyManager extends EventEmitter {
     this.hotkeyCallback = callback;
 
     const savedHotkey = await this.getSavedHotkey();
-    const useEvdevPushToTalk = needsLinuxEvdevPushToTalk(savedHotkey);
+    const useLinuxEvdevDictation = needsLinuxEvdevPushToTalk(savedHotkey);
 
-    if (useEvdevPushToTalk) {
+    if (useLinuxEvdevDictation) {
       debugLogger.log(
-        `[HotkeyManager] Push-to-talk "${savedHotkey}" — using Linux evdev listener (skipping desktop shortcuts)`
+        `[HotkeyManager] "${savedHotkey}" — using Linux evdev listener (skipping desktop shortcuts)`
       );
       await this._unregisterStaleDesktopDictationShortcut();
       if (process.platform === "linux") {

@@ -107,6 +107,19 @@ const buttonVariants = cva(
           "dark:bg-surface-raised/80 dark:border-border-hover dark:hover:bg-surface-raised/95",
           "transition-[background-color,border-color,color,transform] duration-200 ease-out",
         ].join(" "),
+
+        // Liquid glass — iOS-style frosted surface (pairs with GlassFilter SVG)
+        glass: [
+          "relative font-medium overflow-hidden",
+          "text-foreground",
+          "bg-white/15 dark:bg-white/8",
+          "backdrop-blur-xl backdrop-saturate-150",
+          "border border-white/25 dark:border-white/10",
+          "shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_2px_2px_1px_0_rgba(255,255,255,0.35)]",
+          "hover:bg-white/22 dark:hover:bg-white/12",
+          "active:scale-[0.98]",
+          "transition-[background-color,transform] duration-500",
+        ].join(" "),
       },
       size: {
         default: "h-10 px-4 py-2",

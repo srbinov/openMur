@@ -52,6 +52,7 @@ class WindowManager {
     this.loadErrorShown = false;
     this.macCompoundPushState = null;
     this.winPushState = null;
+    this._pttRecordingActive = false;
     this._cachedActivationMode = "tap";
     this._localOnlyMode = LOCAL_ONLY;
     this._floatingIconAutoHide = LOCAL_ONLY;
@@ -416,8 +417,16 @@ class WindowManager {
   }
 
   startWindowsPushToTalk() {
+    // Stale push state from a missed KEY_UP — finish the previous session first.
     if (this.winPushState?.active) {
-      return;
+      this.handleWindowsPushKeyUp();
+    } else if (this._pttRecordingActive) {
+      this.sendStopDictation();
+    }
+
+    // Orphan listening UI from a prior aborted hold (KEY_UP before MIN_HOLD_DURATION_MS).
+    if (this._localOnlyMode && this._pillState === "listening") {
+      void this.setDictationPillState("idle");
     }
 
     const MIN_HOLD_DURATION_MS = 150;
@@ -456,8 +465,13 @@ class WindowManager {
       this.sendStopDictation();
     } else {
       this.hideDictationPanel();
+      if (this._localOnlyMode) {
+        void this.setDictationPillState("idle");
+        if (this.transcriptionPreviewWindow && !this.transcriptionPreviewWindow.isDestroyed()) {
+          this.transcriptionPreviewWindow.webContents.send("preview-hide");
+        }
+      }
     }
-
   }
 
   resetWindowsPushState() {
@@ -489,6 +503,7 @@ class WindowManager {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this._pttRecordingActive = true;
       void this.setDictationPillState("listening");
       this.mainWindow.webContents.send("start-dictation");
       this.meetingDetectionEngine?.setUserRecording(true);
@@ -500,6 +515,7 @@ class WindowManager {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this._pttRecordingActive = false;
       if (this._localOnlyMode) {
         void this.setDictationPillState("processing");
       }
@@ -554,6 +570,14 @@ class WindowManager {
 
   async updateHotkey(hotkey) {
     return await this.hotkeyManager.updateHotkey(hotkey, this.createHotkeyCallback());
+  }
+
+  async reinitializeDictationHotkey() {
+    const hotkey = this.hotkeyManager.getCurrentHotkey?.() || this.hotkeyManager.currentHotkey;
+    if (hotkey) {
+      return this.updateHotkey(hotkey);
+    }
+    return this.initializeHotkey();
   }
 
   isUsingGnomeHotkeys() {

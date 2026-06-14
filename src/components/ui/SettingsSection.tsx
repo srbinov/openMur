@@ -2,6 +2,8 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { useSettingsLayout } from "./useSettingsLayout";
 import type { InferenceMode } from "../../types/electron";
+import { GlassEffect } from "./liquid-glass";
+import { cn } from "../lib/utils";
 
 interface SettingsSectionProps {
   title: string;
@@ -42,17 +44,22 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({
   variant = "default",
   className = "",
 }) => {
-  const baseClasses = "space-y-3 p-3 rounded-lg border";
+  const baseClasses = "space-y-3 p-3";
   const variantClasses = {
-    default: "bg-card/50 dark:bg-surface-2/50 border-border/50 dark:border-border-subtle",
-    highlighted: "bg-primary/5 dark:bg-primary/10 border-primary/20 dark:border-primary/30",
+    default: "",
+    highlighted: "",
   };
 
   return (
-    <div className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
+    <GlassEffect
+      interactive={false}
+      rounded="rounded-xl"
+      tint={variant === "highlighted" ? "accent" : "default"}
+      className={cn(baseClasses, variantClasses[variant], className)}
+    >
       {title && <h4 className="text-xs font-medium text-foreground">{title}</h4>}
       {children}
-    </div>
+    </GlassEffect>
   );
 };
 
@@ -96,11 +103,15 @@ export function SettingsPanel({
   className?: string;
 }) {
   return (
-    <div
-      className={`rounded-lg border border-border/50 dark:border-border-subtle/70 bg-card/50 dark:bg-surface-2/50 backdrop-blur-sm divide-y divide-border/30 dark:divide-border-subtle/50 ${className}`}
+    <GlassEffect
+      interactive={false}
+      density="surface"
+      rounded="rounded-2xl"
+      tint="default"
+      className={cn("divide-y divide-white/10 dark:divide-white/8 flex flex-col", className)}
     >
       {children}
-    </div>
+    </GlassEffect>
   );
 }
 

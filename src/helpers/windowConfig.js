@@ -65,10 +65,12 @@ const MAIN_WINDOW_CONFIG = {
 };
 
 // Control panel window configuration
+const CONTROL_PANEL_USES_GLASS_SHELL = true;
+
 const CONTROL_PANEL_CONFIG = {
   width: 1200,
   height: 800,
-  backgroundColor: LOCAL_ONLY ? LOCAL_CONTROL_PANEL_BACKGROUND : "#1c1c2e",
+  backgroundColor: CONTROL_PANEL_USES_GLASS_SHELL ? "#00000000" : LOCAL_ONLY ? LOCAL_CONTROL_PANEL_BACKGROUND : "#1c1c2e",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -89,15 +91,19 @@ const CONTROL_PANEL_CONFIG = {
   show: false,
   frame: false,
   roundedCorners: true,
-  ...(process.platform === "linux" && {
+  ...(CONTROL_PANEL_USES_GLASS_SHELL && {
     transparent: true,
     backgroundColor: "#00000000",
   }),
   ...(process.platform === "darwin" && {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 20, y: 20 },
+    ...(CONTROL_PANEL_USES_GLASS_SHELL && {
+      vibrancy: "under-window",
+      visualEffectState: "active",
+    }),
   }),
-  ...(process.platform !== "linux" && { transparent: false }),
+  ...(!CONTROL_PANEL_USES_GLASS_SHELL && process.platform !== "darwin" && { transparent: false }),
   minimizable: true,
   maximizable: true,
   closable: true,

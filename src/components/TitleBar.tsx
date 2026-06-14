@@ -50,7 +50,7 @@ export default function TitleBar({
   };
 
   return (
-    <div className={`bg-background border-b border-border select-none ${className}`}>
+    <div className={cn("bg-transparent border-b border-white/12 dark:border-white/8 select-none", className)}>
       <div
         className="relative flex items-center justify-between h-12 px-4"
         style={{ WebkitAppRegion: "drag" }}
